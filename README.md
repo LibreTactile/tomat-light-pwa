@@ -1,19 +1,19 @@
-# Light Launcher
+# Tomat light
 (Mobile Derivative of TOMAT Navigator)  
-*A tactile Android launcher for nonlinear, accessible interaction*
+*A tactile pwa for nonlinear, accessible interaction*
 
-**Light Launcher** is an Android app paired with a 3D-printed tactile guide, designed to replicate the [TOMAT Navigator](https://github.com/LibreTactile/tomat) interaction experience on mobile devices. It enables **nonlinear, multimodal and contextual navigation** of apps, files, and settings through audio-tactile feedback, prioritizing accessibility for visually impaired users.
+**Tomat Light** is a PWA app paired with a 3D-printed tactile guide, designed to replicate the [TOMAT Navigator](https://github.com/LibreTactile/tomat) interaction experience on mobile devices. It enables **nonlinear, multimodal and contextual navigation** of apps, files, and settings through audio-tactile feedback, prioritizing accessibility for visually impaired users. Its a fork of the [Light Launcher](https://github.com/LibreTactile/light-launcher) developed with a different architecture. 
 
 ---
 
-## Key Features  
+## Key Features  (planned)
 **Core Interaction**  
 - 🖐️ **Tactile and Contextual Interactions**: Use the 3D-printed grid or pair with TOMAT derivatives hardware for gesture-based navigation. 
 - 📱 **Nonlinear Android Launcher**: Navigate apps/files in nonlinear hierarchies, extending traditional menus.  
 - 🔍 **Multiscale Views**: Zoom between high-level overviews (e.g., app categories) and granular details (e.g., individual files, annotations).  
 
 **Accessibility**  
-- 🔊 **Screen Reader Integration**: Works seamlessly with TalkBack (CoiceOver planned for the future).  
+- 🔊 **Screen Reader Integration**: Works seamlessly with NVDA & JAWS.  
 - 🎮 **Gesture & Audio Feedback**: Double-tap, swipe, and press-and-hold gestures with contextual audio cues.  
 
 **Advanced Tools**  
@@ -25,7 +25,7 @@
 ## Hardware + Software  
 | Component              | Description                                                                 |  
 |------------------------|-----------------------------------------------------------------------------|  
-| **Android App**        | Built with Godot . [Download debug APK]([link-to-apk](https://github.com/LibreTactile/light-launcher/releases)) |  
+| **PWA App**            | Built with C# and webassembly.               |  
 | **3D-Printed Grid**    | Tactile overlay for phones/tablets. [STL Files](hardware/3d-models) (first draft)         |  
 | Peripherials| TOMAT;Wearable sensations; bluetooth/usb gamepad; hid devices, etc...  |
 
@@ -37,8 +37,9 @@
 ---
 
 ## Roadmap  
+
 **Phase 1: Core Functionality (v0.1–v0.3)**  
-- `v0.1`: Minimal launcher  
+- `v0.1`: Minimal PWA App  
   - `v0.1.1` websocket server 
   - `v0.1.2` buttons grid
   - `v0.1.3` vibration patterns from recieved model 
@@ -53,12 +54,13 @@
 
 **Phase 3: Semantic Queries (v0.7–v0.10)**  
 - `v0.8–v0.9`: App/file relationship graphs  
-- `v0.10–v0.11`: SPARQL endpoint integration for natural language queries, open linked data and semantic web (i.e. europeana, gallica, semantic wikimedia)  
+- `v0.10–v0.11`: SPARQL endpoint integration for natural language queries, linked open data and semantic web (i.e. europeana, gallica, semantic wikimedia)  
 
 ---
 
 
 Not yet planned  
+
 ---
 
 **Phase 4: Plugin Ecosystem**  
@@ -66,14 +68,15 @@ Not yet planned
 
 **Phase 5: Universal Accessibility Interface**  
 - Expand compatibility to act as a **TOMAT Navigator for other devices** (e.g., PCs, smart TVs, IoT devices).  
-- Develop a **Universal Accessibility Protocol** for Android, enabling apps to render processes, settings, and data accessible via nonlinear, multimodal navigation (e.g., tactile, audio, gesture).  
+- Develop a **Universal Accessibility Protocol** for operating systems, enabling apps to render processes, settings, and data accessible via nonlinear, multimodal navigation (e.g., tactile, audio, gesture).  
+- Develop a fediverse browser (ie. mastodon, peertube, etc).
 
 ---
 
 ## Get Started  
-1. **Install the APK**: Download the debug apk from the [release page](https://github.com/LibreTactile/light-launcher/releases) ~~or the google playstore~~.  
+1. **Install the PWA**: Visit the PWA website (pending link) and install the app.  
 2. **Get the hardware (optional)**: Use [3D models](hardware/3d-models) to print the guide, or contact your local FabLab.  
-3. **Enable Accessibility**: Activate Light Launcher in Android’s accessibility settings.  
+3. **Connect to the Browser**: Install and connect chrome web browser extension of [TOMAT Navigator](https://github.com/LibreTactile/tomat-navi-prototype/tree/com/websocket)  (WebSocket version).
 
 ---
 
