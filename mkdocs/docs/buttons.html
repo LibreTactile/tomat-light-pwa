@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOMAT UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #2c2c2c;
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .scene {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 10px;
+        }
+
+        .tomat-ui {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 20px;
+        }
+
+        .element-rows {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-evenly;
+            gap: 15px;
+        }
+
+        .element-row {
+            display: flex;
+            gap: 8px;
+            height: 80px;
+        }
+
+        .row-button {
+            flex: 1;
+            background: #4a4a4a;
+            border: 2px solid #666;
+            border-radius: 8px;
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .row-button:hover {
+            background: #5a5a5a;
+            border-color: #777;
+        }
+
+        .row-button:active {
+            background: #6a6a6a;
+            transform: scale(0.95);
+        }
+
+        .row-separator {
+            width: 8px;
+            background: #666;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .enter-button {
+            background: #0066cc;
+            border-color: #0077dd;
+        }
+
+        .enter-button:hover {
+            background: #0077dd;
+        }
+
+        .enter-button:active {
+            background: #0088ee;
+        }
+
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .nav-button {
+            width: 60px;
+            height: 60px;
+            background: #4a4a4a;
+            border: 2px solid #666;
+            border-radius: 8px;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .nav-button:hover {
+            background: #5a5a5a;
+            border-color: #777;
+        }
+
+        .nav-button:active {
+            background: #6a6a6a;
+            transform: scale(0.95);
+        }
+
+        .nav-button.star {
+            background: #cc6600;
+            border-color: #dd7700;
+        }
+
+        .nav-button.star:hover {
+            background: #dd7700;
+        }
+
+        .nav-button.star:active {
+            background: #ee8800;
+        }
+
+        .quit-button {
+            background: #cc0000;
+            border: 2px solid #dd0000;
+            border-radius: 8px;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .quit-button:hover {
+            background: #dd0000;
+            border-color: #ee0000;
+        }
+
+        .quit-button:active {
+            background: #ee0000;
+            transform: scale(0.98);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            .element-row {
+                height: 70px;
+                gap: 6px;
+            }
+            
+            .row-button {
+                font-size: 24px;
+            }
+            
+            .nav-button {
+                width: 50px;
+                height: 50px;
+                font-size: 30px;
+            }
+            
+            .nav-buttons {
+                gap: 8px;
+            }
+            
+            .quit-button {
+                font-size: 28px;
+                padding: 12px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .element-row {
+                height: 60px;
+                gap: 4px;
+            }
+            
+            .row-button {
+                font-size: 20px;
+            }
+            
+            .nav-button {
+                width: 45px;
+                height: 45px;
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="scene">
+        <div class="tomat-ui">
+            <div class="element-rows">
+                <!-- Element Row 1 -->
+                <div class="element-row">
+                    <button class="row-button" onclick="handleRowButton('h1')">h1</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h2')">h2</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h3')">h3</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h4')">h4</button>
+                    <div class="row-separator" style="width: 16px;"></div>
+                    <button class="row-button enter-button" onclick="handleInput('enter')">↵</button>
+                </div>
+
+                <!-- Element Row 2 -->
+                <div class="element-row">
+                    <button class="row-button" onclick="handleRowButton('h1')">h1</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h2')">h2</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h3')">h3</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h4')">h4</button>
+                    <div class="row-separator" style="width: 16px;"></div>
+                    <button class="row-button enter-button" onclick="handleInput('enter')">↵</button>
+                </div>
+
+                <!-- Element Row 3 -->
+                <div class="element-row">
+                    <button class="row-button" onclick="handleRowButton('h1')">h1</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h2')">h2</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h3')">h3</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h4')">h4</button>
+                    <div class="row-separator" style="width: 16px;"></div>
+                    <button class="row-button enter-button" onclick="handleInput('enter')">↵</button>
+                </div>
+
+                <!-- Element Row 4 -->
+                <div class="element-row">
+                    <button class="row-button" onclick="handleRowButton('h1')">h1</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h2')">h2</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h3')">h3</button>
+                    <div class="row-separator"></div>
+                    <button class="row-button" onclick="handleRowButton('h4')">h4</button>
+                    <div class="row-separator" style="width: 16px;"></div>
+                    <button class="row-button enter-button" onclick="handleInput('enter')">↵</button>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="nav-buttons">
+                <button class="nav-button star" onclick="handleNavButton('F')">*</button>
+                <button class="nav-button" onclick="handleNavButton('P')">+</button>
+                <button class="nav-button" onclick="handleNavButton('M')">-</button>
+                <button class="nav-button" onclick="handleNavButton('U')">↑</button>
+                <button class="nav-button" onclick="handleNavButton('D')">↓</button>
+                <button class="nav-button" onclick="handleNavButton('N')">></button>
+            </div>
+
+            <!-- Quit Button -->
+            <button class="quit-button" onclick="handleQuit()">Quit</button>
+        </div>
+    </div>
+
+    <script>
+        function handleRowButton(element) {
+            console.log(`Row button clicked: ${element}`);
+            // Add your row button logic here
+            alert(`${element} button pressed`);
+        }
+
+        function handleInput(input) {
+            console.log(`Input button clicked: ${input}`);
+            // Add your input logic here
+            alert(`${input} pressed`);
+        }
+
+        function handleNavButton(button) {
+            console.log(`Nav button clicked: ${button}`);
+            // Add your navigation logic here
+            alert(`Navigation ${button} pressed`);
+        }
+
+        function handleQuit() {
+            console.log('Quit button clicked');
+            // Add your quit logic here
+            if (confirm('Are you sure you want to quit?')) {
+                // For web, you might want to redirect or close
+                window.close();
+            }
+        }
+
+        // Prevent zoom on double tap
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+
+        // Prevent context menu on long press
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+
+        // Add haptic feedback on mobile devices (if supported)
+        function addHapticFeedback() {
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+
+        // Add haptic feedback to all button clicks
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('touchstart', addHapticFeedback);
+        });
+    </script>
+</body>
+</html>
