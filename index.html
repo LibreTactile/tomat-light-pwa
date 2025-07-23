@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibration PWA</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Vibration PWA">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📳</text></svg>">
+    
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><text x='90' y='130' font-size='90' text-anchor='middle' fill='white'>📳</text></svg>">
+    
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="data:application/json,{
+        'name': 'Vibration PWA',
+        'short_name': 'Vibrate',
+        'description': 'Simple vibration app with haptic feedback',
+        'start_url': '/',
+        'display': 'standalone',
+        'background_color': '#0f0f23',
+        'theme_color': '#1a1a2e',
+        'orientation': 'portrait',
+        'icons': [
+            {
+                'src': 'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 192 192\'><rect width=\'192\' height=\'192\' fill=\'%231a1a2e\'/><text x=\'96\' y=\'140\' font-size=\'96\' text-anchor=\'middle\' fill=\'white\'>📳</text></svg>',
+                'sizes': '192x192',
+                'type': 'image/svg+xml'
+            },
+            {
+                'src': 'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 512 512\'><rect width=\'512\' height=\'512\' fill=\'%231a1a2e\'/><text x=\'256\' y=\'370\' font-size=\'256\' text-anchor=\'middle\' fill=\'white\'>📳</text></svg>',
+                'sizes': '512x512',
+                'type': 'image/svg+xml'
+            }
+        ]
+    }">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            z-index: 2;
+        }
+
+        .title {
+            color: #e94560;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        .subtitle {
+            color: #a8a8a8;
+            font-size: 1.1rem;
+            margin-bottom: 3rem;
+            opacity: 0.8;
+        }
+
+        .vibrate-button {
+            width: 200px;
+            height: 200px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #e94560, #c73650);
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                0 10px 30px rgba(233, 69, 96, 0.3),
+                inset 0 2px 10px rgba(255, 255, 255, 0.1);
+        }
+
+        .vibrate-button:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .vibrate-button:hover:before {
+            left: 100%;
+        }
+
+        .vibrate-button:hover {
+            transform: scale(1.05);
+            box-shadow: 
+                0 15px 40px rgba(233, 69, 96, 0.4),
+                inset 0 2px 10px rgba(255, 255, 255, 0.2);
+        }
+
+        .vibrate-button:active {
+            transform: scale(0.95);
+            background: linear-gradient(145deg, #c73650, #a82d42);
+            box-shadow: 
+                0 5px 20px rgba(233, 69, 96, 0.5),
+                inset 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .button-text {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .button-icon {
+            font-size: 3rem;
+            animation: pulse 2s infinite;
+        }
+
+        .status {
+            margin-top: 2rem;
+            color: #64ffda;
+            font-size: 1rem;
+            min-height: 1.5rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .status.show {
+            opacity: 1;
+        }
+
+        .install-prompt {
+            position: fixed;
+            bottom: 2rem;
+            left: 2rem;
+            right: 2rem;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(233, 69, 96, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            color: white;
+            text-align: center;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .install-prompt.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .install-button {
+            background: linear-gradient(145deg, #e94560, #c73650);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .install-button:hover {
+            background: linear-gradient(145deg, #c73650, #a82d42);
+            transform: translateY(-2px);
+        }
+
+        .close-button {
+            background: transparent;
+            color: #a8a8a8;
+            border: 1px solid rgba(168, 168, 168, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .background-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .wave {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(233, 69, 96, 0.1) 0%, transparent 70%);
+            animation: wave-expand 3s infinite;
+        }
+
+        @keyframes glow {
+            to {
+                text-shadow: 0 0 30px rgba(233, 69, 96, 0.5);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        @keyframes wave-expand {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        .vibrating {
+            animation: shake 0.1s infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0) scale(0.95); }
+            25% { transform: translateX(-2px) scale(0.95); }
+            75% { transform: translateX(2px) scale(0.95); }
+        }
+
+        @media (max-width: 480px) {
+            .title {
+                font-size: 2rem;
+            }
+            
+            .vibrate-button {
+                width: 160px;
+                height: 160px;
+                font-size: 1rem;
+            }
+            
+            .button-icon {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-animation"></div>
+    
+    <div class="container">
+        <h1 class="title">Vibration PWA</h1>
+        <p class="subtitle">Press and hold to feel the vibration</p>
+        
+        <button class="vibrate-button" id="vibrateBtn">
+            <div class="button-text">
+                <span class="button-icon">📳</span>
+                <span>VIBRATE</span>
+            </div>
+        </button>
+        
+        <div class="status" id="status"></div>
+    </div>
+
+    <div class="install-prompt" id="installPrompt">
+        <h3 style="margin-bottom: 1rem;">Install Vibration PWA</h3>
+        <p style="margin-bottom: 1rem; opacity: 0.8;">Add this app to your home screen for the best experience!</p>
+        <button class="install-button" id="installBtn">Install App</button>
+        <button class="close-button" id="closeBtn">Maybe Later</button>
+    </div>
+
+    <script>
+        class VibrationPWA {
+            constructor() {
+                this.vibrateBtn = document.getElementById('vibrateBtn');
+                this.status = document.getElementById('status');
+                this.installPrompt = document.getElementById('installPrompt');
+                this.installBtn = document.getElementById('installBtn');
+                this.closeBtn = document.getElementById('closeBtn');
+                
+                this.isVibrating = false;
+                this.vibrationInterval = null;
+                this.deferredPrompt = null;
+                
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.checkVibrationSupport();
+                this.setupPWA();
+                this.createBackgroundAnimation();
+            }
+
+            setupEventListeners() {
+                // Touch events for mobile
+                this.vibrateBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.startVibration();
+                });
+
+                this.vibrateBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.stopVibration();
+                });
+
+                // Mouse events for desktop
+                this.vibrateBtn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    this.startVibration();
+                });
+
+                this.vibrateBtn.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    this.stopVibration();
+                });
+
+                this.vibrateBtn.addEventListener('mouseleave', () => {
+                    this.stopVibration();
+                });
+
+                // PWA install events
+                this.installBtn.addEventListener('click', () => {
+                    this.installPWA();
+                });
+
+                this.closeBtn.addEventListener('click', () => {
+                    this.hideInstallPrompt();
+                });
+            }
+
+            startVibration() {
+                if (this.isVibrating) return;
+                
+                this.isVibrating = true;
+                this.vibrateBtn.classList.add('vibrating');
+                
+                // Try different vibration patterns for better compatibility
+                if (navigator.vibrate) {
+                    // Continuous vibration pattern
+                    this.vibrationInterval = setInterval(() => {
+                        navigator.vibrate(50);
+                    }, 100);
+                    
+                    this.showStatus('Vibrating... 📳');
+                } else {
+                    this.showStatus('Vibration not supported 😕');
+                }
+
+                this.createWaveEffect();
+            }
+
+            stopVibration() {
+                if (!this.isVibrating) return;
+                
+                this.isVibrating = false;
+                this.vibrateBtn.classList.remove('vibrating');
+                
+                if (this.vibrationInterval) {
+                    clearInterval(this.vibrationInterval);
+                    this.vibrationInterval = null;
+                }
+                
+                // Stop vibration
+                if (navigator.vibrate) {
+                    navigator.vibrate(0);
+                }
+                
+                this.showStatus('Stopped vibrating');
+                setTimeout(() => {
+                    this.hideStatus();
+                }, 2000);
+            }
+
+            checkVibrationSupport() {
+                if (!navigator.vibrate) {
+                    this.showStatus('Vibration API not supported on this device');
+                }
+            }
+
+            showStatus(message) {
+                this.status.textContent = message;
+                this.status.classList.add('show');
+            }
+
+            hideStatus() {
+                this.status.classList.remove('show');
+            }
+
+            createWaveEffect() {
+                const wave = document.createElement('div');
+                wave.className = 'wave';
+                wave.style.left = '50%';
+                wave.style.top = '50%';
+                wave.style.width = '100px';
+                wave.style.height = '100px';
+                wave.style.marginLeft = '-50px';
+                wave.style.marginTop = '-50px';
+                
+                document.querySelector('.background-animation').appendChild(wave);
+                
+                setTimeout(() => {
+                    wave.remove();
+                }, 3000);
+            }
+
+            createBackgroundAnimation() {
+                const backgroundAnim = document.querySelector('.background-animation');
+                
+                setInterval(() => {
+                    if (!this.isVibrating && Math.random() > 0.7) {
+                        const wave = document.createElement('div');
+                        wave.className = 'wave';
+                        wave.style.left = Math.random() * 100 + '%';
+                        wave.style.top = Math.random() * 100 + '%';
+                        wave.style.width = '50px';
+                        wave.style.height = '50px';
+                        wave.style.marginLeft = '-25px';
+                        wave.style.marginTop = '-25px';
+                        
+                        backgroundAnim.appendChild(wave);
+                        
+                        setTimeout(() => {
+                            wave.remove();
+                        }, 3000);
+                    }
+                }, 2000);
+            }
+
+            setupPWA() {
+                // Register service worker
+                if ('serviceWorker' in navigator) {
+                    // Simple inline service worker
+                    const swCode = `
+                        self.addEventListener('install', event => {
+                            self.skipWaiting();
+                        });
+                        
+                        self.addEventListener('activate', event => {
+                            event.waitUntil(clients.claim());
+                        });
+                        
+                        self.addEventListener('fetch', event => {
+                            // Let the browser handle all fetch requests
+                        });
+                    `;
+                    
+                    const blob = new Blob([swCode], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(blob);
+                    
+                    navigator.serviceWorker.register(swUrl)
+                        .then(() => console.log('Service Worker registered'))
+                        .catch(() => console.log('Service Worker registration failed'));
+                }
+
+                // Handle install prompt
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    this.deferredPrompt = e;
+                    this.showInstallPrompt();
+                });
+
+                // Show install prompt for iOS Safari
+                if (this.isIOS() && !this.isStandalone()) {
+                    setTimeout(() => {
+                        this.showInstallPrompt();
+                    }, 3000);
+                }
+            }
+
+            isIOS() {
+                return /iPad|iPhone|iPod/.test(navigator.userAgent);
+            }
+
+            isStandalone() {
+                return window.matchMedia('(display-mode: standalone)').matches || 
+                       window.navigator.standalone === true;
+            }
+
+            showInstallPrompt() {
+                this.installPrompt.classList.add('show');
+            }
+
+            hideInstallPrompt() {
+                this.installPrompt.classList.remove('show');
+            }
+
+            async installPWA() {
+                if (this.deferredPrompt) {
+                    this.deferredPrompt.prompt();
+                    const { outcome } = await this.deferredPrompt.userChoice;
+                    
+                    if (outcome === 'accepted') {
+                        console.log('PWA installed');
+                    }
+                    
+                    this.deferredPrompt = null;
+                    this.hideInstallPrompt();
+                } else if (this.isIOS()) {
+                    // Show iOS install instructions
+                    alert('To install this app on iOS:\n1. Tap the Share button\n2. Tap "Add to Home Screen"\n3. Tap "Add"');
+                } else {
+                    this.hideInstallPrompt();
+                }
+            }
+        }
+
+        //S Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new VibrationPWA();
+        });
+
+        // Prevent context menu on long press
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>
