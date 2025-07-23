@@ -17,7 +17,7 @@
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><text x='90' y='130' font-size='90' text-anchor='middle' fill='white'>📳</text></svg>">
     
-    <!-- Web App Manifest -->
+    <!-- Web App Manifest  -->
     <link rel="manifest" href="./manifest.json">
 
     <style>
@@ -485,11 +485,14 @@
             }
 
             async setupPWA() {
+                // Get the correct base path for GitHub Pages
+                const basePath = this.getBasePath();
+                
                 // Register service worker - now using external file
                 if ('serviceWorker' in navigator) {
                     try {
                         const registration = await navigator.serviceWorker.register('./sw.js', {
-                            scope: './'
+                            scope: basePath
                         });
                         
                         console.log('Service Worker registered successfully:', registration);
@@ -537,6 +540,20 @@
                         this.showInstallPrompt();
                     }, 5000);
                 }
+            }
+
+            getBasePath() {
+                // Get the correct base path for GitHub Pages
+                const path = window.location.pathname;
+                if (path.includes('.github.io/') && !path.endsWith('.github.io/')) {
+                    // Extract repository name for GitHub Pages
+                    const parts = path.split('/');
+                    const repoIndex = parts.findIndex(part => part.includes('.github.io'));
+                    if (repoIndex !== -1 && parts[repoIndex + 1]) {
+                        return `/${parts[repoIndex + 1]}/`;
+                    }
+                }
+                return './';
             }
 
             checkForServiceWorkerUpdates() {
