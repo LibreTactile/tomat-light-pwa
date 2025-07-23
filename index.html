@@ -18,28 +18,7 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><text x='90' y='130' font-size='90' text-anchor='middle' fill='white'>📳</text></svg>">
     
     <!-- Web App Manifest -->
-    <link rel="manifest" href="data:application/json,{
-        'name': 'Vibration PWA',
-        'short_name': 'Vibrate',
-        'description': 'Simple vibration app with haptic feedback',
-        'start_url': '/',
-        'display': 'standalone',
-        'background_color': '#0f0f23',
-        'theme_color': '#1a1a2e',
-        'orientation': 'portrait',
-        'icons': [
-            {
-                'src': 'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 192 192\'><rect width=\'192\' height=\'192\' fill=\'%231a1a2e\'/><text x=\'96\' y=\'140\' font-size=\'96\' text-anchor=\'middle\' fill=\'white\'>📳</text></svg>',
-                'sizes': '192x192',
-                'type': 'image/svg+xml'
-            },
-            {
-                'src': 'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 512 512\'><rect width=\'512\' height=\'512\' fill=\'%231a1a2e\'/><text x=\'256\' y=\'370\' font-size=\'256\' text-anchor=\'middle\' fill=\'white\'>📳</text></svg>',
-                'sizes': '512x512',
-                'type': 'image/svg+xml'
-            }
-        ]
-    }">
+    <link rel="manifest" href="./manifest.json">
 
     <style>
         * {
@@ -212,6 +191,24 @@
             transition: all 0.3s ease;
         }
 
+        .service-worker-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(26, 26, 46, 0.9);
+            color: #64ffda;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .service-worker-status.show {
+            opacity: 1;
+        }
+
         .background-animation {
             position: fixed;
             top: 0;
@@ -302,6 +299,8 @@
         <button class="close-button" id="closeBtn">Maybe Later</button>
     </div>
 
+    <div class="service-worker-status" id="swStatus"></div>
+
     <script>
         class VibrationPWA {
             constructor() {
@@ -310,10 +309,12 @@
                 this.installPrompt = document.getElementById('installPrompt');
                 this.installBtn = document.getElementById('installBtn');
                 this.closeBtn = document.getElementById('closeBtn');
+                this.swStatus = document.getElementById('swStatus');
                 
                 this.isVibrating = false;
                 this.vibrationInterval = null;
                 this.deferredPrompt = null;
+                this.isInstalled = false;
                 
                 this.init();
             }
@@ -323,6 +324,8 @@
                 this.checkVibrationSupport();
                 this.setupPWA();
                 this.createBackgroundAnimation();
+                this.checkIfInstalled();
+                this.handleUrlActions();
             }
 
             setupEventListeners() {
@@ -359,6 +362,18 @@
 
                 this.closeBtn.addEventListener('click', () => {
                     this.hideInstallPrompt();
+                });
+
+                // Handle app state changes
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        this.stopVibration();
+                    }
+                });
+
+                // Handle service worker updates
+                window.addEventListener('load', () => {
+                    this.checkForServiceWorkerUpdates();
                 });
             }
 
@@ -420,6 +435,15 @@
                 this.status.classList.remove('show');
             }
 
+            showServiceWorkerStatus(message, duration = 3000) {
+                this.swStatus.textContent = message;
+                this.swStatus.classList.add('show');
+                
+                setTimeout(() => {
+                    this.swStatus.classList.remove('show');
+                }, duration);
+            }
+
             createWaveEffect() {
                 const wave = document.createElement('div');
                 wave.className = 'wave';
@@ -460,44 +484,66 @@
                 }, 2000);
             }
 
-            setupPWA() {
-                // Register service worker
+            async setupPWA() {
+                // Register service worker - now using external file
                 if ('serviceWorker' in navigator) {
-                    // Simple inline service worker
-                    const swCode = `
-                        self.addEventListener('install', event => {
-                            self.skipWaiting();
+                    try {
+                        const registration = await navigator.serviceWorker.register('./sw.js', {
+                            scope: './'
                         });
                         
-                        self.addEventListener('activate', event => {
-                            event.waitUntil(clients.claim());
+                        console.log('Service Worker registered successfully:', registration);
+                        this.showServiceWorkerStatus('✅ Service Worker registered');
+                        
+                        // Handle service worker updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    this.showServiceWorkerStatus('🔄 App updated! Refresh to see changes', 5000);
+                                }
+                            });
                         });
                         
-                        self.addEventListener('fetch', event => {
-                            // Let the browser handle all fetch requests
-                        });
-                    `;
-                    
-                    const blob = new Blob([swCode], { type: 'application/javascript' });
-                    const swUrl = URL.createObjectURL(blob);
-                    
-                    navigator.serviceWorker.register(swUrl)
-                        .then(() => console.log('Service Worker registered'))
-                        .catch(() => console.log('Service Worker registration failed'));
+                    } catch (error) {
+                        console.error('Service Worker registration failed:', error);
+                        this.showServiceWorkerStatus('❌ Service Worker registration failed');
+                    }
+                } else {
+                    console.log('Service Workers not supported');
+                    this.showServiceWorkerStatus('⚠️ Service Workers not supported');
                 }
 
                 // Handle install prompt
                 window.addEventListener('beforeinstallprompt', (e) => {
                     e.preventDefault();
                     this.deferredPrompt = e;
-                    this.showInstallPrompt();
+                    if (!this.isInstalled) {
+                        setTimeout(() => this.showInstallPrompt(), 3000);
+                    }
                 });
 
-                // Show install prompt for iOS Safari
-                if (this.isIOS() && !this.isStandalone()) {
+                // Handle app installation
+                window.addEventListener('appinstalled', () => {
+                    console.log('PWA was installed');
+                    this.isInstalled = true;
+                    this.hideInstallPrompt();
+                    this.showServiceWorkerStatus('🎉 App installed successfully!');
+                });
+
+                // Show install prompt for iOS Safari (after delay)
+                if (this.isIOS() && !this.isStandalone() && !this.isInstalled) {
                     setTimeout(() => {
                         this.showInstallPrompt();
-                    }, 3000);
+                    }, 5000);
+                }
+            }
+
+            checkForServiceWorkerUpdates() {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.update();
+                    });
                 }
             }
 
@@ -510,12 +556,44 @@
                        window.navigator.standalone === true;
             }
 
+            checkIfInstalled() {
+                // Check if running as standalone (installed PWA)
+                if (this.isStandalone()) {
+                    this.isInstalled = true;
+                    console.log('App is running as standalone (installed)');
+                }
+                
+                // Check if beforeinstallprompt has been fired and dismissed
+                if (localStorage.getItem('pwa-dismissed')) {
+                    this.isInstalled = true;
+                }
+            }
+
+            handleUrlActions() {
+                // Handle URL parameters for shortcuts
+                const urlParams = new URLSearchParams(window.location.search);
+                const action = urlParams.get('action');
+                
+                if (action === 'vibrate') {
+                    // Short vibration for shortcut
+                    setTimeout(() => {
+                        if (navigator.vibrate) {
+                            navigator.vibrate([200, 100, 200]);
+                            this.showStatus('Quick vibrate! 📳');
+                        }
+                    }, 500);
+                }
+            }
+
             showInstallPrompt() {
-                this.installPrompt.classList.add('show');
+                if (!this.isInstalled) {
+                    this.installPrompt.classList.add('show');
+                }
             }
 
             hideInstallPrompt() {
                 this.installPrompt.classList.remove('show');
+                localStorage.setItem('pwa-dismissed', 'true');
             }
 
             async installPWA() {
@@ -523,22 +601,32 @@
                     this.deferredPrompt.prompt();
                     const { outcome } = await this.deferredPrompt.userChoice;
                     
+                    console.log(`User response to install prompt: ${outcome}`);
+                    
                     if (outcome === 'accepted') {
-                        console.log('PWA installed');
+                        this.isInstalled = true;
+                        this.showServiceWorkerStatus('🎉 Installing app...');
                     }
                     
                     this.deferredPrompt = null;
                     this.hideInstallPrompt();
                 } else if (this.isIOS()) {
-                    // Show iOS install instructions
-                    alert('To install this app on iOS:\n1. Tap the Share button\n2. Tap "Add to Home Screen"\n3. Tap "Add"');
-                } else {
+                    // Show detailed iOS install instructions
+                    const instructions = this.isInstalled ? 
+                        'App is already added to your home screen!' :
+                        'To install this app on iOS:\n\n1. Tap the Share button (⎋) at the bottom of the screen\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" in the top right corner\n\nThe app will then appear on your home screen!';
+                    
+                    alert(instructions);
                     this.hideInstallPrompt();
+                } else {
+                    // For other browsers that don't support install prompt
+                    this.hideInstallPrompt();
+                    this.showServiceWorkerStatus('ℹ️ Install not available on this browser');
                 }
             }
         }
 
-        //S Initialize the app when DOM is loaded
+        // Initialize the app when DOM is loaded
         document.addEventListener('DOMContentLoaded', () => {
             new VibrationPWA();
         });
@@ -546,6 +634,13 @@
         // Prevent context menu on long press
         document.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+        });
+
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && navigator.vibrate) {
+                navigator.vibrate(0); // Stop any ongoing vibration when page is hidden
+            }
         });
     </script>
 </body>
