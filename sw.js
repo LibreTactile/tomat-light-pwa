@@ -1,11 +1,11 @@
 // Vibration PWA Service Worker
 const CACHE_NAME = 'vibration-pwa-v1';
 const STATIC_CACHE_URLS = [
-  '/',
-  '/index.html',
-  '/manifest.json'
+  './',
+  './index.html',
+  './manifest.json',
+  './sw.js'  
 ];
-
 // Install event - cache resources
 self.addEventListener('install', event => {
   console.log('Service Worker: Installing...');

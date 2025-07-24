@@ -1,14 +1,14 @@
 {
-  "name": "TOMAT Light PWA",
-  "short_name": "TOMAT",
-  "description": "Tactile interface with WebRTC communication",
-  "start_url": "/",
+  "name": "Vibration PWA",
+  "short_name": "Vibrate",
+  "description": "Simple vibration app with haptic feedback",
+  "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f0f23",
   "theme_color": "#1a1a2e",
   "lang": "en",
-  "scope": "/",
+  "scope": "./",
   "categories": ["utilities", "productivity"],
   "screenshots": [
     {
