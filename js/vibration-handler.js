@@ -105,13 +105,16 @@ class VibrationHandler {
         this.updateDebugInfo();
     }
 
+
     handleTouchEnd(e) {
         for (let touch of e.changedTouches) {
             if (this.activeTouches.has(touch.identifier)) {
                 const touchState = this.activeTouches.get(touch.identifier);
                 
-                if (touchState.isInside) {
-                    this.onTouchExitButton(touch.identifier);
+                // Always stop vibration when a touch is lifted, regardless of position
+                if (this.isVibrating) {
+                    this.stopVibration();
+                    this.vibrateBtn.classList.remove('active', 'hover');
                 }
                 
                 this.activeTouches.delete(touch.identifier);
@@ -162,11 +165,11 @@ class VibrationHandler {
         if (this.activeTouches.has('mouse')) {
             const touchState = this.activeTouches.get('mouse');
             
-            if (touchState.isInside) {
-                this.onTouchExitButton('mouse');
-                this.stopAllVibration(); 
+            // Always stop vibration when mouse is lifted, regardless of position
+            if (this.isVibrating) {
+                this.stopVibration();
+                this.vibrateBtn.classList.remove('active', 'hover');
             }
-            
             this.activeTouches.delete('mouse');
         }
 
@@ -191,11 +194,14 @@ class VibrationHandler {
         this.createWaveEffect();
     }
 
-    onTouchExitButton(touchId) {
-        // Check if any other touches are still inside
+   
+   onTouchExitButton(touchId) {
+
+        // Check if any other touches are still inside the button
         const hasInsideTouch = Array.from(this.activeTouches.values())
             .some(touch => touch.isInside);
 
+        // Only stop vibration if no touches are inside the button
         if (!hasInsideTouch && this.isVibrating) {
             this.stopVibration();
             this.vibrateBtn.classList.remove('active', 'hover');
