@@ -41,6 +41,7 @@
             justify-content: center;
             overflow: hidden;
             position: relative;
+            touch-action: none; /* Prevent default touch behaviors */
         }
 
         .container {
@@ -94,18 +95,18 @@
             transition: left 0.5s;
         }
 
-        .vibrate-button:hover:before {
+        .vibrate-button.hover:before {
             left: 100%;
         }
 
-        .vibrate-button:hover {
+        .vibrate-button.hover {
             transform: scale(1.05);
             box-shadow: 
                 0 15px 40px rgba(233, 69, 96, 0.4),
                 inset 0 2px 10px rgba(255, 255, 255, 0.2);
         }
 
-        .vibrate-button:active {
+        .vibrate-button.active {
             transform: scale(0.95);
             background: linear-gradient(145deg, #c73650, #a82d42);
             box-shadow: 
@@ -137,6 +138,26 @@
         }
 
         .status.show {
+            opacity: 1;
+        }
+
+        .debug-info {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(26, 26, 46, 0.9);
+            color: #64ffda;
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-family: monospace;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+            max-width: 200px;
+        }
+
+        .debug-info.show {
             opacity: 1;
         }
 
@@ -280,7 +301,7 @@
     
     <div class="container">
         <h1 class="title">Vibration PWA</h1>
-        <p class="subtitle">Press and hold to feel the vibration</p>
+        <p class="subtitle">Slide your finger into the button area to vibrate</p>
         
         <button class="vibrate-button" id="vibrateBtn">
             <div class="button-text">
@@ -291,6 +312,8 @@
         
         <div class="status" id="status"></div>
     </div>
+
+    <div class="debug-info" id="debugInfo"></div>
 
     <div class="install-prompt" id="installPrompt">
         <h3 style="margin-bottom: 1rem;">Install Vibration PWA</h3>
@@ -306,15 +329,19 @@
             constructor() {
                 this.vibrateBtn = document.getElementById('vibrateBtn');
                 this.status = document.getElementById('status');
+                this.debugInfo = document.getElementById('debugInfo');
                 this.installPrompt = document.getElementById('installPrompt');
                 this.installBtn = document.getElementById('installBtn');
                 this.closeBtn = document.getElementById('closeBtn');
                 this.swStatus = document.getElementById('swStatus');
                 
+                // Touch tracking system
+                this.activeTouches = new Map(); // Maps touch identifier to touch state
                 this.isVibrating = false;
                 this.vibrationInterval = null;
                 this.deferredPrompt = null;
                 this.isInstalled = false;
+                this.debugMode = false; // Set to true for debugging
                 
                 this.init();
             }
@@ -329,31 +356,16 @@
             }
 
             setupEventListeners() {
-                // Touch events for mobile
-                this.vibrateBtn.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    this.startVibration();
-                });
+                // Global touch events to track finger movement anywhere on screen
+                document.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                document.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+                document.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+                document.addEventListener('touchcancel', (e) => this.handleTouchEnd(e));
 
-                this.vibrateBtn.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    this.stopVibration();
-                });
-
-                // Mouse events for desktop
-                this.vibrateBtn.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    this.startVibration();
-                });
-
-                this.vibrateBtn.addEventListener('mouseup', (e) => {
-                    e.preventDefault();
-                    this.stopVibration();
-                });
-
-                this.vibrateBtn.addEventListener('mouseleave', () => {
-                    this.stopVibration();
-                });
+                // Mouse events for desktop testing
+                document.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
 
                 // PWA install events
                 this.installBtn.addEventListener('click', () => {
@@ -367,7 +379,7 @@
                 // Handle app state changes
                 document.addEventListener('visibilitychange', () => {
                     if (document.hidden) {
-                        this.stopVibration();
+                        this.stopAllVibration();
                     }
                 });
 
@@ -375,6 +387,178 @@
                 window.addEventListener('load', () => {
                     this.checkForServiceWorkerUpdates();
                 });
+
+                // Debug toggle (double tap title)
+                let tapCount = 0;
+                document.querySelector('.title').addEventListener('click', () => {
+                    tapCount++;
+                    if (tapCount === 2) {
+                        this.debugMode = !this.debugMode;
+                        this.updateDebugInfo();
+                        tapCount = 0;
+                    }
+                    setTimeout(() => tapCount = 0, 500);
+                });
+            }
+
+            handleTouchStart(e) {
+                e.preventDefault();
+                
+                for (let touch of e.changedTouches) {
+                    const isInside = this.isTouchInsideButton(touch);
+                    
+                    this.activeTouches.set(touch.identifier, {
+                        isInside: isInside,
+                        x: touch.clientX,
+                        y: touch.clientY
+                    });
+
+                    if (isInside) {
+                        this.onTouchEnterButton(touch.identifier);
+                    }
+                }
+
+                this.updateDebugInfo();
+            }
+
+            handleTouchMove(e) {
+                e.preventDefault();
+                
+                for (let touch of e.changedTouches) {
+                    if (this.activeTouches.has(touch.identifier)) {
+                        const touchState = this.activeTouches.get(touch.identifier);
+                        const wasInside = touchState.isInside;
+                        const isInside = this.isTouchInsideButton(touch);
+
+                        // Update touch position
+                        touchState.x = touch.clientX;
+                        touchState.y = touch.clientY;
+                        touchState.isInside = isInside;
+
+                        // Handle enter/exit events
+                        if (!wasInside && isInside) {
+                            this.onTouchEnterButton(touch.identifier);
+                        } else if (wasInside && !isInside) {
+                            this.onTouchExitButton(touch.identifier);
+                        }
+                    }
+                }
+
+                this.updateDebugInfo();
+            }
+
+            handleTouchEnd(e) {
+                for (let touch of e.changedTouches) {
+                    if (this.activeTouches.has(touch.identifier)) {
+                        const touchState = this.activeTouches.get(touch.identifier);
+                        
+                        if (touchState.isInside) {
+                            this.onTouchExitButton(touch.identifier);
+                        }
+                        
+                        this.activeTouches.delete(touch.identifier);
+                    }
+                }
+
+                this.updateDebugInfo();
+            }
+
+            // Mouse events for desktop (simulate single touch)
+            handleMouseDown(e) {
+                const isInside = this.isMouseInsideButton(e);
+                
+                this.activeTouches.set('mouse', {
+                    isInside: isInside,
+                    x: e.clientX,
+                    y: e.clientY
+                });
+
+                if (isInside) {
+                    this.onTouchEnterButton('mouse');
+                }
+
+                this.updateDebugInfo();
+            }
+
+            handleMouseMove(e) {
+                if (this.activeTouches.has('mouse')) {
+                    const touchState = this.activeTouches.get('mouse');
+                    const wasInside = touchState.isInside;
+                    const isInside = this.isMouseInsideButton(e);
+
+                    touchState.x = e.clientX;
+                    touchState.y = e.clientY;
+                    touchState.isInside = isInside;
+
+                    if (!wasInside && isInside) {
+                        this.onTouchEnterButton('mouse');
+                    } else if (wasInside && !isInside) {
+                        this.onTouchExitButton('mouse');
+                    }
+
+                    this.updateDebugInfo();
+                }
+            }
+
+            handleMouseUp(e) {
+                if (this.activeTouches.has('mouse')) {
+                    const touchState = this.activeTouches.get('mouse');
+                    
+                    if (touchState.isInside) {
+                        this.onTouchExitButton('mouse');
+                    }
+                    
+                    this.activeTouches.delete('mouse');
+                }
+
+                this.updateDebugInfo();
+            }
+
+            isTouchInsideButton(touch) {
+                const rect = this.vibrateBtn.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const radius = rect.width / 2;
+
+                const distance = Math.sqrt(
+                    Math.pow(touch.clientX - centerX, 2) + 
+                    Math.pow(touch.clientY - centerY, 2)
+                );
+
+                return distance <= radius;
+            }
+
+            isMouseInsideButton(e) {
+                const rect = this.vibrateBtn.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const radius = rect.width / 2;
+
+                const distance = Math.sqrt(
+                    Math.pow(e.clientX - centerX, 2) + 
+                    Math.pow(e.clientY - centerY, 2)
+                );
+
+                return distance <= radius;
+            }
+
+            onTouchEnterButton(touchId) {
+                if (!this.isVibrating) {
+                    this.startVibration();
+                }
+                this.vibrateBtn.classList.add('active', 'hover');
+                this.createWaveEffect();
+            }
+
+            onTouchExitButton(touchId) {
+                // Check if any other touches are still inside
+                const hasInsideTouch = Array.from(this.activeTouches.values())
+                    .some(touch => touch.isInside);
+
+                if (!hasInsideTouch && this.isVibrating) {
+                    this.stopVibration();
+                    this.vibrateBtn.classList.remove('active', 'hover');
+                }
             }
 
             startVibration() {
@@ -383,7 +567,6 @@
                 this.isVibrating = true;
                 this.vibrateBtn.classList.add('vibrating');
                 
-                // Try different vibration patterns for better compatibility
                 if (navigator.vibrate) {
                     // Continuous vibration pattern
                     this.vibrationInterval = setInterval(() => {
@@ -394,8 +577,6 @@
                 } else {
                     this.showStatus('Vibration not supported 😕');
                 }
-
-                this.createWaveEffect();
             }
 
             stopVibration() {
@@ -409,7 +590,6 @@
                     this.vibrationInterval = null;
                 }
                 
-                // Stop vibration
                 if (navigator.vibrate) {
                     navigator.vibrate(0);
                 }
@@ -418,6 +598,31 @@
                 setTimeout(() => {
                     this.hideStatus();
                 }, 2000);
+            }
+
+            stopAllVibration() {
+                this.activeTouches.clear();
+                this.stopVibration();
+                this.vibrateBtn.classList.remove('active', 'hover');
+            }
+
+            updateDebugInfo() {
+                if (!this.debugMode) {
+                    this.debugInfo.classList.remove('show');
+                    return;
+                }
+
+                const touches = Array.from(this.activeTouches.entries());
+                const touchInfo = touches.map(([id, state]) => 
+                    `${id}: ${state.isInside ? 'IN' : 'OUT'} (${Math.round(state.x)},${Math.round(state.y)})`
+                ).join('\n');
+
+                this.debugInfo.innerHTML = `
+                    Active Touches: ${touches.length}<br>
+                    Vibrating: ${this.isVibrating}<br>
+                    ${touchInfo.replace(/\n/g, '<br>')}
+                `;
+                this.debugInfo.classList.add('show');
             }
 
             checkVibrationSupport() {
