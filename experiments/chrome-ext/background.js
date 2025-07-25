@@ -90,6 +90,13 @@ async function handleMessage(request, sender, sendResponse) {
         sendResponse({ success: true });
         break;
 
+      case 'cleanupSession':
+        if (signalingManager) {
+            signalingManager.cleanupSession(request.sessionId);
+            sendResponse({success: true});
+        }
+        break;
+
       default:
         sendResponse({ error: 'Unknown message type' });
     }
@@ -101,11 +108,23 @@ async function handleMessage(request, sender, sendResponse) {
 
 // Cleanup on extension shutdown
 chrome.runtime.onSuspend.addListener(() => {
-  if (signalingManager) {
-    signalingManager.cleanup();
-  }
+  cleanupExtension();
 });
 
+// Also handle browser window/tab closing
+chrome.windows.onRemoved.addListener(() => {
+  cleanupExtension();
+});
+
+async function cleanupExtension() {
+  if (signalingManager) {
+    try {
+      await signalingManager.cleanup();
+    } catch (error) {
+      console.error('Cleanup error:', error);
+    }
+  }
+}
 // Helper to ensure Firebase is loaded
 function waitForFirebase() {
   return new Promise((resolve, reject) => {
@@ -128,3 +147,4 @@ function waitForFirebase() {
     }, 100);
   });
 }
+

@@ -111,3 +111,16 @@ async function connectToPeer(peerId) {
     setTimeout(() => window.location.reload(), 5000);
   }
 }
+
+// Handle sidebar closing
+window.addEventListener('unload', () => {
+  if (webrtcManager) {
+    webrtcManager.close();
+  }
+  if (currentSessionId) {
+    chrome.runtime.sendMessage({
+      type: 'cleanupSession',
+      sessionId: currentSessionId
+    }).catch(() => {});
+  }
+});

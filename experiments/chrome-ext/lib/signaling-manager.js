@@ -19,13 +19,6 @@ class SignalingManager {
 
     async init() {
         try {
-            // --- REMOVED EXTERNAL importScripts ---
-            // importScripts(
-            //   'https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js',
-            //   'https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js'
-            // );
-            // -------------------------------------
-
             // Check if Firebase is already loaded globally (it should be now)
             if (typeof firebase === 'undefined' || !firebase.initializeApp) {
                  console.warn('Signaling: Firebase SDK not found globally, falling back to mock.');
@@ -66,20 +59,18 @@ class SignalingManager {
     }
 
 
-    // ... rest of the methods (registerPeer, startHeartbeat, etc.) remain unchanged ...
     async registerPeer() {
         try {
             const peerData = {
                 peerId: this.peerId,
                 role: this.role,
                 publicIP: this.publicIP,
-                status: 'available',
+                status: 'available',  // Make sure status is set to available initially
                 timestamp: new Date(),
                 lastSeen: new Date()
             };
             await this.db.collection('peers').doc(this.peerId).set(peerData);
-            // Set up periodic heartbeat
-            this.startHeartbeat();
+            this.startHeartbeat();  // Start heartbeat after successful registration
             // Listen for incoming offers (interface role)
             if (this.role === 'interface') {
                 this.listenForOffers();
@@ -95,23 +86,30 @@ class SignalingManager {
         // Clear any existing interval first
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
         }
-        // Update lastSeen every 30 seconds
-        this.heartbeatInterval = setInterval(async () => {
-            try {
-                if (this.db && this.peerId) { // Check if db/peerId still exist
-                     await this.db.collection('peers').doc(this.peerId).update({
-                        lastSeen: new Date()
-                     });
-                }
-            } catch (error) {
+        
+        // Initial update
+        this.updateLastSeen().catch(error => {
+            console.error('Signaling: Initial heartbeat failed:', error);
+        });
+        
+        // Set up periodic updates every 30 seconds
+        this.heartbeatInterval = setInterval(() => {
+            this.updateLastSeen().catch(error => {
                 console.error('Signaling: Heartbeat failed:', error);
-                // Maybe stop heartbeat if persistent errors?
-                // clearInterval(this.heartbeatInterval);
-                // this.heartbeatInterval = null;
-            }
+            });
         }, 30000);
     }
+
+    async updateLastSeen() {
+    if (!this.db || !this.peerId) {
+        throw new Error('Cannot update lastSeen: db or peerId not initialized');
+    }
+    await this.db.collection('peers').doc(this.peerId).update({
+        lastSeen: new Date()
+    });
+}
 
     listenForOffers() {
         if (!this.db) return; // Guard if db not initialized
@@ -261,10 +259,10 @@ class SignalingManager {
         // Clear heartbeat
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
-            this.heartbeatInterval = null; // Clear reference
+            this.heartbeatInterval = null;
         }
+        
         // Unsubscribe from all listeners
-        // Iterate backwards and remove to avoid issues during iteration
         while(this.unsubscribeCallbacks.length > 0) {
             const unsubscribe = this.unsubscribeCallbacks.pop();
             if (typeof unsubscribe === 'function') {
@@ -275,6 +273,7 @@ class SignalingManager {
                 }
             }
         }
+        
         // Update peer status to offline
         if (this.db && this.peerId) {
             this.db.collection('peers').doc(this.peerId).update({
@@ -284,7 +283,28 @@ class SignalingManager {
                 console.error('Signaling: Failed to update offline status:', error);
             });
         }
+        
         Utils.log('Signaling: Cleanup completed');
+    }
+
+    async cleanupSession(sessionId) {
+        try {
+            if (!this.db) return;
+            // Remove the session document
+            await this.db.collection('sessions').doc(sessionId).delete();
+            // Also remove any ICE candidates
+            const candidates = await this.db.collection('sessions')
+                .doc(sessionId)
+                .collection('candidates')
+                .get();
+            const batch = this.db.batch();
+            candidates.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error('Signaling: Failed to cleanup session:', error);
+        }
     }
 }
 
