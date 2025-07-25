@@ -1,134 +1,130 @@
 importScripts(
-  'lib/firebase/firebase-app-compat.js',     // Load Firebase App first
-  'lib/firebase/firebase-firestore-compat.js' // Load Firestore second
-);
-importScripts(
-  'lib/utils.js',
-  'lib/signaling-manager.js', // This will now find 'firebase' globally
-  'lib/webrtc-manager.js'
+  'lib/firebase/firebase-app-compat.js',
+  'lib/firebase/firebase-firestore-compat.js',
+  'lib/signaling-manager.js',
+  'lib/utils.js'
 );
 
-// Declare global variables
 let signalingManager;
-let webrtcManager;
 let publicIP = '';
+let isInitialized = false;
 
-// --- Helper to ensure Firebase is loaded ---
-// The compat scripts might take a tick to attach to 'self'
-function waitForFirebase() {
-  return new Promise((resolve, reject) => {
-    if (typeof self.firebase !== 'undefined' && self.firebase.apps) {
-       // Firebase seems to be there already
-       resolve();
-       return;
-    }
-
-    // If not immediately available, wait a short time
-    // This handles the case where the script is loaded but hasn't executed yet
-    // or attached to 'self'. A simple timeout is often sufficient.
-    const checkInterval = setInterval(() => {
-        if (typeof self.firebase !== 'undefined' && self.firebase.apps) {
-            clearInterval(checkInterval);
-            resolve();
-        }
-    }, 10); // Check every 10ms
-
-    // Set a timeout to prevent hanging forever
-    setTimeout(() => {
-        clearInterval(checkInterval);
-        reject(new Error("Firebase failed to load within timeout"));
-    }, 5000); // 5 second timeout
-  });
-}
-// ---
-
-// Initialize when extension starts
+// Initialize signaling
 chrome.runtime.onInstalled.addListener(initialize);
 chrome.runtime.onStartup.addListener(initialize);
 
 async function initialize() {
+  if (isInitialized) return;
+  
   try {
-    // Ensure Firebase is available globally before proceeding
     await waitForFirebase();
-    console.log("Firebase is ready:", typeof self.firebase);
-
-    // Get public IP
-    publicIP = await Utils.getPublicIP(); // Assuming Utils is loaded via import
-    // Initialize signaling
+    publicIP = await Utils.getPublicIP();
+    
     signalingManager = new SignalingManager(publicIP, 'navigator');
-    // The SignalingManager.init() should now find 'firebase' globally
-    // and NOT try to use importScripts to load it again.
-    // Modify SignalingManager.init() to remove the importScripts part.
+    
+    // Set up signaling callbacks
+    signalingManager.onAnswerReceived = (answer) => {
+      // Forward answer to sidebar if needed
+      chrome.runtime.sendMessage({
+        type: 'answerReceived',
+        answer
+      }).catch(() => {
+        // Sidebar might not be open, that's ok
+      });
+    };
+
+    signalingManager.onIceCandidateReceived = (candidate) => {
+      // Forward ICE candidate to sidebar if needed
+      chrome.runtime.sendMessage({
+        type: 'iceCandidateReceived',
+        candidate
+      }).catch(() => {
+        // Sidebar might not be open, that's ok
+      });
+    };
+
     await signalingManager.init();
     await signalingManager.registerPeer();
-    // Initialize WebRTC
-    webrtcManager = new WebRTCManager(signalingManager);
-    // Start peer discovery
-    findAndConnectToInterface();
+    
+    isInitialized = true;
+    console.log('Background script initialized successfully');
   } catch (error) {
     console.error('Initialization failed:', error);
-    // Retry after delay if needed
+    isInitialized = false;
+    // Retry initialization after delay
     setTimeout(initialize, 5000);
   }
 }
 
-async function findAndConnectToInterface() {
+// Handle messages from sidebar
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  handleMessage(request, sender, sendResponse);
+  return true; // Required for async sendResponse
+});
+
+async function handleMessage(request, sender, sendResponse) {
   try {
-    const peers = await signalingManager.findAvailablePeers();
-    if (peers.length > 0) {
-      // Connect to first available interface
-      const interfacePeer = peers[0];
-      console.log(`Found interface peer: ${interfacePeer.peerId}`);
-      // Create data channel
-      const dataChannel = await webrtcManager.createDataChannel('vibration-control');
-      // Set up data channel handlers
-      dataChannel.onmessage = (event) => {
-        console.log('Received vibration command:', event.data);
-        // Here you would handle the vibration commands
-      };
-      // Initiate connection
-      await webrtcManager.connectToPeer(interfacePeer.peerId);
-    } else {
-      console.log('No interface peers found. Retrying in 5 seconds...');
-      setTimeout(findAndConnectToInterface, 5000);
+    if (!signalingManager) {
+      sendResponse({ error: 'Signaling manager not initialized' });
+      return;
+    }
+
+    switch (request.type) {
+      case 'getPeers':
+        const peers = await signalingManager.findAvailablePeers();
+        sendResponse(peers);
+        break;
+
+      case 'sendOffer':
+        const sessionId = await signalingManager.sendOffer(request.offer, request.peerId);
+        sendResponse({ sessionId });
+        break;
+
+      case 'sendAnswer':
+        await signalingManager.sendAnswer(request.answer, request.sessionId);
+        sendResponse({ success: true });
+        break;
+
+      case 'sendIceCandidate':
+        await signalingManager.sendIceCandidate(request.candidate, request.sessionId);
+        sendResponse({ success: true });
+        break;
+
+      default:
+        sendResponse({ error: 'Unknown message type' });
     }
   } catch (error) {
-    console.error('Peer discovery failed:', error);
-    setTimeout(findAndConnectToInterface, 5000);
+    console.error('Error handling message:', error);
+    sendResponse({ error: error.message });
   }
 }
 
-// Clean up when extension is unloaded
+// Cleanup on extension shutdown
 chrome.runtime.onSuspend.addListener(() => {
-  if (signalingManager) signalingManager.cleanup();
-  if (webrtcManager) webrtcManager.cleanup();
-});
-
-function getConnectionStatus() {
-  return {
-    connected: webrtcManager?.peerConnection?.connectionState === 'connected',
-    peerId: signalingManager?.peerId || null, // Use peerId from signalingManager instance
-    publicIP: publicIP,
-    role: 'navigator'
-  };
-}
-
-// Handle messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'getConnectionStatus') {
-    sendResponse(getConnectionStatus());
-  } else if (request.type === 'reconnect') {
-    findAndConnectToInterface();
-    sendResponse({ success: true });
+  if (signalingManager) {
+    signalingManager.cleanup();
   }
 });
 
-// Send updates to popup when connection changes (if used)
-// function sendStatusUpdate() {
-//   chrome.runtime.sendMessage({
-//     type: 'connectionUpdate',
-//     status: getConnectionStatus()
-//   }).catch(error => {
-//     console.error('Failed to send status update:', error);
-//   });
-// }
+// Helper to ensure Firebase is loaded
+function waitForFirebase() {
+  return new Promise((resolve, reject) => {
+    if (typeof firebase !== 'undefined') {
+      return resolve();
+    }
+    
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds max wait
+    
+    const checkInterval = setInterval(() => {
+      attempts++;
+      if (typeof firebase !== 'undefined') {
+        clearInterval(checkInterval);
+        resolve();
+      } else if (attempts >= maxAttempts) {
+        clearInterval(checkInterval);
+        reject(new Error('Firebase failed to load within timeout'));
+      }
+    }, 100);
+  });
+}
