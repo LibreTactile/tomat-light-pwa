@@ -17,3 +17,7 @@ To use this extension:
     Load it in Chrome in developer mode
 
     The extension will automatically try to connect to any available interface PWA on the same network
+
+
+   ##  todo:
+     bundle firebase scripts
