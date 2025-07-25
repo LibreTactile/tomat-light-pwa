@@ -30,6 +30,12 @@
         <h1 class="title">Vibration PWA</h1>
         <p class="subtitle">Slide your finger into the button area to vibrate</p>
         
+        <!-- WebRTC Connection Status -->
+        <div class="connection-status" id="connectionStatus">
+            <span class="status-indicator" id="statusIndicator">⚫</span>
+            <span class="status-text" id="statusText">Connecting...</span>
+        </div>
+        
         <button class="vibrate-button" id="vibrateBtn">
             <div class="button-text">
                 <span class="button-icon">📳</span>
@@ -38,6 +44,12 @@
         </button>
         
         <div class="status" id="status"></div>
+        
+        <!-- WebRTC Controls -->
+        <div class="webrtc-controls" id="webrtcControls">
+            <button class="control-button" id="reconnectBtn">🔄 Reconnect</button>
+            <button class="control-button" id="debugBtn">🐛 Debug</button>
+        </div>
     </div>
 
     <div class="debug-info" id="debugInfo"></div>
@@ -51,8 +63,14 @@
 
     <div class="service-worker-status" id="swStatus"></div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+
     <!-- JavaScript Modules -->
     <script src="./js/utils.js"></script>
+    <script src="./js/signaling-manager.js"></script>
+    <script src="./js/webrtc-manager.js"></script>
     <script src="./js/vibration-handler.js"></script>
     <script src="./js/pwa-manager.js"></script>
     <script src="./js/app.js"></script>
