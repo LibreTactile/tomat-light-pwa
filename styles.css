@@ -266,6 +266,55 @@ body {
     75% { transform: translateX(2px) scale(0.95); }
 }
 
+/* WebRTC Connection Status Styling */
+.connection-status {
+    margin-bottom: 2rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    display: inline-block;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.connection-status.connected {
+    background: rgba(100, 255, 218, 0.05);
+    border-color: rgba(100, 255, 218, 0.2);
+}
+
+.status-main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.status-text {
+    color: #a8a8a8;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.connection-status.connected .status-text {
+    color: #64ffda;
+}
+
+.status-details {
+    margin-top: 0.4rem;
+    font-size: 0.7rem;
+    color: #666;
+    display: flex;
+    gap: 0.8rem;
+    justify-content: center;
+    font-family: monospace;
+}
+
+.status-details span {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
 /* Responsive Design */
 @media (max-width: 480px) {
     .title {

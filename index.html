@@ -31,13 +31,16 @@
     <div class="background-animation"></div>
 
     <div class="container">
-        <h1 class="title">Tomat Light PWA 6</h1>
+        <h1 class="title">Tomat Light PWA 0.2</h1>
         <p class="subtitle">Slide your finger into the button area to vibrate</p>
 
         <!-- WebRTC Connection Status -->
         <div class="connection-status" id="connectionStatus">
-            <span class="status-indicator" id="statusIndicator">⚫</span>
-            <span class="status-text" id="statusText">Connecting...</span>
+            <div class="status-main">
+                <span class="status-indicator" id="statusIndicator">⚫</span>
+                <span class="status-text" id="statusText">Connecting...</span>
+            </div>
+            <div class="status-details" id="statusDetails"></div>
         </div>
 
         <button class="vibrate-button" id="vibrateBtn">

@@ -27,7 +27,7 @@ To test the Service Worker/Installability on your phone, use Chrome Port Forward
 
 ---
 
-To smooth out hot reloading while developing:
+To smooth out reloading while developing:
 
 While your phone is connected and you have chrome://inspect/#devices open:
 

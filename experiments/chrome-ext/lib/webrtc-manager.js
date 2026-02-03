@@ -4,7 +4,7 @@ class WebRTCManager {
     this.dataChannels = {};
     this.signalingDelegate = signalingDelegate;
     this.connectionState = 'new';
-    
+
     this.iceServers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -26,13 +26,13 @@ class WebRTCManager {
     if (!this.peerConnection) {
       throw new Error('Peer connection not initialized');
     }
-    
+
     const dataChannel = this.peerConnection.createDataChannel(label, {
       ordered: true
     });
-    
+
     this.dataChannels[label] = dataChannel;
-    
+
     // Set up immediate event handlers
     dataChannel.onopen = () => {
       console.log(`Data channel ${label} opened`);
@@ -45,7 +45,7 @@ class WebRTCManager {
     dataChannel.onclose = () => {
       console.log(`Data channel ${label} closed`);
     };
-    
+
     return dataChannel;
   }
 
@@ -60,10 +60,18 @@ class WebRTCManager {
     this.peerConnection.onconnectionstatechange = () => {
       this.connectionState = this.peerConnection.connectionState;
       console.log('Connection state changed:', this.connectionState);
-      
+
       if (this.connectionState === 'failed') {
         console.error('WebRTC connection failed');
         // Trigger reconnection logic if needed
+      }
+    };
+
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', this.peerConnection.iceConnectionState);
+      if (this.peerConnection.iceConnectionState === 'failed' ||
+        this.peerConnection.iceConnectionState === 'disconnected') {
+        console.warn('ICE connection failed or disconnected');
       }
     };
 
@@ -74,15 +82,15 @@ class WebRTCManager {
     this.peerConnection.ondatachannel = (event) => {
       const channel = event.channel;
       console.log('Received data channel:', channel.label);
-      
+
       channel.onopen = () => {
         console.log('Received data channel opened:', channel.label);
       };
-      
+
       channel.onmessage = (event) => {
         console.log('Received message on channel:', event.data);
       };
-      
+
       this.dataChannels[channel.label] = channel;
     };
   }
@@ -97,10 +105,10 @@ class WebRTCManager {
         offerToReceiveAudio: false,
         offerToReceiveVideo: false
       });
-      
+
       await this.peerConnection.setLocalDescription(offer);
       console.log('Offer created and local description set');
-      
+
       return offer;
     } catch (error) {
       console.error('Failed to create offer:', error);
@@ -154,12 +162,12 @@ class WebRTCManager {
         channel.close();
       }
     });
-    
+
     if (this.peerConnection) {
       this.peerConnection.close();
       this.peerConnection = null;
     }
-    
+
     this.dataChannels = {};
     this.connectionState = 'closed';
     console.log('WebRTC connection closed');

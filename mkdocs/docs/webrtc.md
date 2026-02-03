@@ -6,6 +6,8 @@
 ## signaling server
 For a simple solution we will use a real-time database as a signaling server (samples: [codelab](https://webrtc.org/getting-started/firebase-rtc-codelab), [fireship](https://fireship.io/lessons/webrtc-firebase-video-chat/)). Firebase will be used as it has static endpoint, a free tier and is part of the gcloud console that the project already uses. As a PoC the public IP of the network (both peers are on the same LAN) will be sent to the server to only match peers on the same LAN. One peer takes the role of "interface" and the other of "navigator", this role is also communicated to the database, so matches are only made between peers of two different roles in the same LAN. 
 
+>WARNING: AS A POC THE RULES OF THE FIRESTORE DATABASE ARE NOT SET UP TO PREVENT ABUSE, THIS IS NOT SUITABLE FOR PRODUCTION.
+
 
 ### How It Works
 
@@ -36,3 +38,19 @@ Firebase abstracts away most network and deployment concerns:
 4. Each side listens for changes in the relevant document or messages.
 5. Offers, answers, and ICE candidates are exchanged through writes and real-time updates.
 6. Once connected, data channels are used for app data without the signaling server involved.
+
+### Implementation Details & Best Practices
+
+#### 1. Signaling Serialization
+Firestore does not support direct storage of custom WebRTC objects like `RTCIceCandidate`. These must be serialized into plain JSON objects before being sent to the database.
+```javascript
+// Correct way to send ICE candidates
+const candidateData = JSON.parse(JSON.stringify(candidate));
+await db.collection('candidates').add(candidateData);
+```
+
+#### 2. Handshake Reliability
+To avoid race conditions, the initiating peer (navigator) must set up listeners for the **answer** and **ICE candidates** *before* sending the offer to the signaling server. Failure to do so may result in missed signals if the remote peer responds extremely quickly.
+
+#### 3. Connection Monitoring
+Monitoring `iceConnectionState` and `connectionState` is critical for identifying network issues. Connection failures should trigger a standardized cleanup and retry logic to ensure the peer remains available for future attempts.

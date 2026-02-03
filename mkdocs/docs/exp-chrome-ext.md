@@ -6,9 +6,11 @@ How It Works
 
     It periodically checks for available "interface" peers
 
-    When an interface is found, it initiates a WebRTC connection
+    When an interface is found, it initiates a WebRTC connection. It sets up message listeners first to avoid race conditions during the handshake.
 
-    Once connected, it can receive vibration commands through the data channel
+    Once connected, it can receive vibration commands through the data channel and send tactile feedback back to the PWA.
+
+    The extension monitors `iceConnectionState` and will automatically attempt to reconnect if the connection is lost.
 
 To use this extension:
 

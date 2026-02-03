@@ -158,19 +158,14 @@ class VibrationPWA {
         }
     }
 
-    onConnectionChange(isConnected, state) {
+    onConnectionChange(isConnected, state, signalingState) {
         // Update connection status UI
-        this.updateConnectionStatus(isConnected, state);
+        this.updateConnectionStatus(isConnected, state, signalingState);
 
         // Show/hide WebRTC controls
         this.webrtcControls.style.display = 'block';
 
-        // Update vibration handler with connection status
-        if (this.vibrationHandler) {
-            this.vibrationHandler.setWebRTCStatus(isConnected);
-        }
-
-        Utils.log(`WebRTC connection changed: ${isConnected} (${state})`);
+        Utils.log(`WebRTC connection changed: ${isConnected} (${state}), signaling: ${signalingState}`);
     }
 
     onDataReceived(data) {
@@ -188,7 +183,7 @@ class VibrationPWA {
         }
     }
 
-    updateConnectionStatus(isConnected, state) {
+    updateConnectionStatus(isConnected, state, signalingState) {
         const indicators = {
             'new': '⚫',
             'connecting': '🟡',
@@ -207,11 +202,35 @@ class VibrationPWA {
             'closed': 'Connection closed'
         };
 
+        const signalingMessages = {
+            'initializing': 'Initializing signaling...',
+            'registering': 'Registering as available peer...',
+            'waiting': 'Waiting for peers...',
+            'received_offer': 'Signal received, connecting...',
+            'connecting': 'Establishing peer connection...'
+        };
+
         this.statusIndicator.textContent = indicators[state] || '⚫';
-        this.statusText.textContent = messages[state] || 'Unknown state';
+
+        // Use signaling message if not connected/connecting at WebRTC level
+        let message = messages[state] || 'Unknown state';
+        if (state === 'new' || state === 'connecting') {
+            message = signalingMessages[signalingState] || message;
+        }
+        this.statusText.textContent = message;
+
+        // Update details
+        const details = document.getElementById('statusDetails');
+        if (details && this.webrtcManager) {
+            const status = this.webrtcManager.getConnectionStatus();
+            let detailsHtml = '';
+            if (status.publicIP) detailsHtml += `<span>IP: ${status.publicIP}</span>`;
+            if (status.peerId) detailsHtml += `<span>ID: ${status.peerId.split('_').pop()}</span>`;
+            details.innerHTML = detailsHtml;
+        }
 
         // Update connection status styling
-        this.connectionStatus.className = `connection-status ${state}`;
+        this.connectionStatus.className = `connection-status ${state} ${signalingState}`;
     }
 
     handleControlCommand(data) {
@@ -273,12 +292,15 @@ class VibrationPWA {
 
     showDebugInfo() {
         const webrtcStatus = this.webrtcManager ? this.webrtcManager.getConnectionStatus() : null;
-        const vibrationStatus = this.vibrationHandler ? this.vibrationHandler.getStatus() : null;
 
         const debugData = {
             timestamp: new Date().toISOString(),
             webrtc: webrtcStatus,
-            vibration: vibrationStatus,
+            vibration: {
+                isVibrating: this.vibrationHandler?.isVibrating || false,
+                activeTouches: this.vibrationHandler?.activeTouches?.size || 0,
+                isTouchDevice: this.vibrationHandler?.isTouchDevice || false
+            },
             userAgent: navigator.userAgent,
             screen: {
                 width: screen.width,

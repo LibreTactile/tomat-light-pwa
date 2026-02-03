@@ -10,17 +10,17 @@ class SignalingManager {
         this.db = null;
         this.peerId = null;
         this.unsubscribeCallbacks = [];
-        
+
         // Callbacks for WebRTC events
         this.onOfferReceived = null;
         this.onAnswerReceived = null;
         this.onIceCandidateReceived = null;
-        
-        this.firebaseConfig = {  
+
+        this.firebaseConfig = {
             apiKey: "AIzaSyBknXnuNOHOugfrHIhzVOmJFL1BoxiU0W0",
             authDomain: "tomat-webrtc.firebaseapp.com",
             projectId: "tomat-webrtc",
-            storageBucket: "tomat-webrtc.appspot.com",  
+            storageBucket: "tomat-webrtc.appspot.com",
             messagingSenderId: "217646764307",
             appId: "1:217646764307:web:d69fb626ddd27ad3928ae6",
             measurementId: "G-2C9SKGR4T5"
@@ -33,16 +33,16 @@ class SignalingManager {
             if (!window.firebase) {
                 throw new Error('Firebase SDK not loaded');
             }
-            
+
             if (!window.firebase.apps.length) {
                 window.firebase.initializeApp(this.firebaseConfig);
             }
-            
+
             this.db = window.firebase.firestore();
             this.peerId = this.generatePeerId();
-            
+
             Utils.log(`Signaling: Initialized with peer ID: ${this.peerId}`);
-            
+
         } catch (error) {
             console.error('Signaling: Initialization failed:', error);
             // Fallback to mock signaling for development
@@ -62,6 +62,7 @@ class SignalingManager {
 
     async registerPeer() {
         try {
+            Utils.log('Signaling: Registering peer...');
             const peerData = {
                 peerId: this.peerId,
                 role: this.role,
@@ -72,17 +73,17 @@ class SignalingManager {
             };
 
             await this.db.collection('peers').doc(this.peerId).set(peerData);
-            
+
             // Set up periodic heartbeat
             this.startHeartbeat();
-            
+
             // Listen for incoming offers (interface role)
             if (this.role === 'interface') {
                 this.listenForOffers();
             }
-            
+
             Utils.log('Signaling: Peer registered successfully');
-            
+
         } catch (error) {
             console.error('Signaling: Failed to register peer:', error);
             throw error;
@@ -112,17 +113,17 @@ class SignalingManager {
                     if (change.type === 'added') {
                         const data = change.doc.data();
                         Utils.log('Signaling: Received offer');
-                        
+
                         if (this.onOfferReceived) {
                             this.onOfferReceived(data.offer, change.doc.id);
                         }
-                        
+
                         // Listen for ICE candidates for this session
                         this.listenForIceCandidates(change.doc.id);
                     }
                 });
             });
-            
+
         this.unsubscribeCallbacks.push(unsubscribe);
     }
 
@@ -137,7 +138,7 @@ class SignalingManager {
                     this.onAnswerReceived(data.answer);
                 }
             });
-            
+
         this.unsubscribeCallbacks.push(unsubscribe);
     }
 
@@ -157,7 +158,7 @@ class SignalingManager {
                     }
                 });
             });
-            
+
         this.unsubscribeCallbacks.push(unsubscribe);
     }
 
@@ -173,14 +174,14 @@ class SignalingManager {
 
             const sessionRef = await this.db.collection('sessions').add(sessionData);
             const sessionId = sessionRef.id;
-            
+
             // Listen for answer
             this.listenForAnswers(sessionId);
             this.listenForIceCandidates(sessionId);
-            
+
             Utils.log('Signaling: Offer sent');
             return sessionId;
-            
+
         } catch (error) {
             console.error('Signaling: Failed to send offer:', error);
             throw error;
@@ -193,9 +194,9 @@ class SignalingManager {
                 answer: answer,
                 answerTimestamp: new Date()
             });
-            
+
             Utils.log('Signaling: Answer sent');
-            
+
         } catch (error) {
             console.error('Signaling: Failed to send answer:', error);
             throw error;
@@ -209,13 +210,13 @@ class SignalingManager {
                 .doc(sessionId)
                 .collection('candidates')
                 .add({
-                    candidate: candidate,
+                    candidate: JSON.parse(JSON.stringify(candidate)),
                     peerId: this.peerId,
                     timestamp: new Date()
                 });
-                
+
             Utils.log('Signaling: ICE candidate sent');
-            
+
         } catch (error) {
             console.error('Signaling: Failed to send ICE candidate:', error);
         }
@@ -226,7 +227,7 @@ class SignalingManager {
             // Find peers with same public IP but different role
             const targetRole = this.role === 'interface' ? 'navigator' : 'interface';
             const cutoffTime = new Date(Date.now() - 60000); // 1 minute ago
-            
+
             const snapshot = await this.db
                 .collection('peers')
                 .where('publicIP', '==', this.publicIP)
@@ -234,15 +235,15 @@ class SignalingManager {
                 .where('status', '==', 'available')
                 .where('lastSeen', '>', cutoffTime)
                 .get();
-                
+
             const peers = [];
             snapshot.forEach(doc => {
                 peers.push({ id: doc.id, ...doc.data() });
             });
-            
+
             Utils.log(`Signaling: Found ${peers.length} available peers`);
             return peers;
-            
+
         } catch (error) {
             console.error('Signaling: Failed to find peers:', error);
             return [];
@@ -254,7 +255,7 @@ class SignalingManager {
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
         }
-        
+
         // Unsubscribe from all listeners
         this.unsubscribeCallbacks.forEach(unsubscribe => {
             try {
@@ -264,7 +265,7 @@ class SignalingManager {
             }
         });
         this.unsubscribeCallbacks = [];
-        
+
         // Update peer status to offline
         if (this.db && this.peerId) {
             this.db.collection('peers').doc(this.peerId).update({
@@ -274,7 +275,7 @@ class SignalingManager {
                 console.error('Signaling: Failed to update offline status:', error);
             });
         }
-        
+
         Utils.log('Signaling: Cleanup completed');
     }
 }
@@ -290,7 +291,7 @@ class MockFirestore {
         if (!this.collections[name]) {
             this.collections[name] = {};
         }
-        
+
         return {
             doc: (id) => ({
                 set: async (data) => {
@@ -329,7 +330,7 @@ class MockFirestore {
                                         docChanges: () => []
                                     });
                                 }, 100);
-                                return () => {}; // Unsubscribe function
+                                return () => { }; // Unsubscribe function
                             }
                         })
                     })
@@ -340,7 +341,7 @@ class MockFirestore {
                             docChanges: () => []
                         });
                     }, 100);
-                    return () => {};
+                    return () => { };
                 }
             })
         };
