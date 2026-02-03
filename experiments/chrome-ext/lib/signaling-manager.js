@@ -1,21 +1,11 @@
-/**
- * SignalingManager - Handles Firebase signaling for WebRTC
- * Manages peer discovery and signaling message exchange
- */
-
 class SignalingManager {
     constructor(publicIP, role) {
         this.publicIP = publicIP;
-        this.role = role; // 'interface' or 'navigator'
+        this.role = role;
         this.db = null;
         this.peerId = null;
         this.unsubscribeCallbacks = [];
-
-        // Callbacks for WebRTC events
-        this.onOfferReceived = null;
-        this.onAnswerReceived = null;
-        this.onIceCandidateReceived = null;
-
+        this.heartbeatInterval = null; // Add missing property
         this.firebaseConfig = {
             apiKey: "AIzaSyBknXnuNOHOugfrHIhzVOmJFL1BoxiU0W0",
             authDomain: "tomat-webrtc.firebaseapp.com",
@@ -29,34 +19,54 @@ class SignalingManager {
 
     async init() {
         try {
-            // Initialize Firebase (assuming Firebase SDK is loaded)
-            if (!window.firebase) {
-                throw new Error('Firebase SDK not loaded');
+            // Check if Firebase is already loaded globally (it should be now)
+            if (typeof firebase === 'undefined' || !firebase.initializeApp) {
+                console.warn('Signaling: Firebase SDK not found globally, falling back to mock.');
+                this.initMockSignaling();
+                return; // Exit early if using mock
+                // throw new Error('Firebase SDK not loaded');
             }
 
-            if (!window.firebase.apps.length) {
-                window.firebase.initializeApp(this.firebaseConfig);
+            // Initialize Firebase App
+            if (!firebase.apps.length) {
+                this.firebaseApp = firebase.initializeApp(this.firebaseConfig);
+            } else {
+                // Use the default app if it exists
+                this.firebaseApp = firebase.app();
             }
+            // Get Firestore instance
+            this.db = firebase.firestore();
 
-            this.db = window.firebase.firestore();
+            // Try to recover existing peer ID from chrome.storage
+            const getStoredId = () => new Promise((resolve) => {
+                chrome.storage.local.get(['tomat_peer_id'], (result) => {
+                    resolve(result.tomat_peer_id);
+                });
+            });
 
-            // Try to recover existing peer ID from localStorage
-            const savedPeerId = localStorage.getItem('tomat_peer_id_' + this.role);
-            if (savedPeerId) {
-                this.peerId = savedPeerId;
-                Utils.log(`Signaling: Recovered existing peer ID: ${this.peerId}`);
+            const storedId = await getStoredId();
+            if (storedId) {
+                this.peerId = storedId;
+                console.log(`Signaling: Recovered existing peer ID: ${this.peerId}`);
             } else {
                 this.peerId = this.generatePeerId();
-                localStorage.setItem('tomat_peer_id_' + this.role, this.peerId);
-                Utils.log(`Signaling: Generated new peer ID: ${this.peerId}`);
+                chrome.storage.local.set({ 'tomat_peer_id': this.peerId });
+                console.log(`Signaling: Generated new peer ID: ${this.peerId}`);
             }
 
         } catch (error) {
             console.error('Signaling: Initialization failed:', error);
-            // Fallback to mock signaling for development
-            this.initMockSignaling();
+            throw error;
         }
     }
+
+    // Remove the duplicate generatePeerId method found later in the file
+    // Keep this one:
+    generatePeerId() {
+        return `${this.role}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    // loadFirebaseScripts() { ... } // Optional: Remove this method if no longer used elsewhere
 
     initMockSignaling() {
         Utils.log('Signaling: Using mock signaling (Firebase not available)');
@@ -64,43 +74,24 @@ class SignalingManager {
         this.peerId = this.generatePeerId();
     }
 
-    generatePeerId() {
-        // Create a simple hash from publicIP and userAgent to ensure static ID for device/network
-        const fingerprint = `${this.publicIP}_${navigator.userAgent}`;
-        let hash = 0;
-        for (let i = 0; i < fingerprint.length; i++) {
-            const char = fingerprint.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Convert to 32bit integer
-        }
-        const hashStr = Math.abs(hash).toString(16);
-        return `${this.role}_${hashStr}`;
-    }
 
     async registerPeer() {
         try {
-            Utils.log('Signaling: Registering peer...');
             const peerData = {
                 peerId: this.peerId,
                 role: this.role,
                 publicIP: this.publicIP,
-                status: 'available',
-                timestamp: window.firebase.firestore.FieldValue.serverTimestamp(),
-                lastSeen: window.firebase.firestore.FieldValue.serverTimestamp()
+                status: 'available',  // Make sure status is set to available initially
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
             };
-
             await this.db.collection('peers').doc(this.peerId).set(peerData);
-
-            // Set up periodic heartbeat
-            this.startHeartbeat();
-
+            this.startHeartbeat();  // Start heartbeat after successful registration
             // Listen for incoming offers (interface role)
             if (this.role === 'interface') {
                 this.listenForOffers();
             }
-
             Utils.log('Signaling: Peer registered successfully');
-
         } catch (error) {
             console.error('Signaling: Failed to register peer:', error);
             throw error;
@@ -108,19 +99,36 @@ class SignalingManager {
     }
 
     startHeartbeat() {
-        // Update lastSeen every 10 seconds (optimized from 30s)
-        this.heartbeatInterval = setInterval(async () => {
-            try {
-                await this.db.collection('peers').doc(this.peerId).update({
-                    lastSeen: window.firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } catch (error) {
+        // Clear any existing interval first
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+
+        // Initial update
+        this.updateLastSeen().catch(error => {
+            console.error('Signaling: Initial heartbeat failed:', error);
+        });
+
+        // Set up periodic updates every 10 seconds (optimized)
+        this.heartbeatInterval = setInterval(() => {
+            this.updateLastSeen().catch(error => {
                 console.error('Signaling: Heartbeat failed:', error);
-            }
+            });
         }, 10000);
     }
 
+    async updateLastSeen() {
+        if (!this.db || !this.peerId) {
+            throw new Error('Cannot update lastSeen: db or peerId not initialized');
+        }
+        await this.db.collection('peers').doc(this.peerId).update({
+            lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+
     listenForOffers() {
+        if (!this.db) return; // Guard if db not initialized
         const unsubscribe = this.db
             .collection('sessions')
             .where('targetPeer', '==', this.peerId)
@@ -129,22 +137,22 @@ class SignalingManager {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         const data = change.doc.data();
-                        Utils.log(`Signaling: Received offer (Session: ${change.doc.id})`);
-
+                        Utils.log('Signaling: Received offer');
                         if (this.onOfferReceived) {
                             this.onOfferReceived(data.offer, change.doc.id);
                         }
-
                         // Listen for ICE candidates for this session
                         this.listenForIceCandidates(change.doc.id);
                     }
                 });
+            }, (error) => { // Add error handler for listener
+                console.error("Signaling: Error listening for offers:", error);
             });
-
         this.unsubscribeCallbacks.push(unsubscribe);
     }
 
     listenForAnswers(sessionId) {
+        if (!this.db) return;
         const unsubscribe = this.db
             .collection('sessions')
             .doc(sessionId)
@@ -154,12 +162,14 @@ class SignalingManager {
                     Utils.log('Signaling: Received answer');
                     this.onAnswerReceived(data.answer);
                 }
+            }, (error) => {
+                console.error("Signaling: Error listening for answer:", error);
             });
-
         this.unsubscribeCallbacks.push(unsubscribe);
     }
 
     listenForIceCandidates(sessionId) {
+        if (!this.db) return;
         const unsubscribe = this.db
             .collection('sessions')
             .doc(sessionId)
@@ -174,13 +184,15 @@ class SignalingManager {
                         }
                     }
                 });
+            }, (error) => {
+                console.error("Signaling: Error listening for ICE candidates:", error);
             });
-
         this.unsubscribeCallbacks.push(unsubscribe);
     }
 
     async sendOffer(offer, targetPeerId) {
         try {
+            if (!this.db) throw new Error("Firestore not initialized");
             const sessionData = {
                 type: 'offer',
                 offer: offer,
@@ -188,17 +200,13 @@ class SignalingManager {
                 targetPeer: targetPeerId,
                 timestamp: new Date()
             };
-
             const sessionRef = await this.db.collection('sessions').add(sessionData);
             const sessionId = sessionRef.id;
-
             // Listen for answer
             this.listenForAnswers(sessionId);
             this.listenForIceCandidates(sessionId);
-
             Utils.log('Signaling: Offer sent');
             return sessionId;
-
         } catch (error) {
             console.error('Signaling: Failed to send offer:', error);
             throw error;
@@ -207,13 +215,12 @@ class SignalingManager {
 
     async sendAnswer(answer, sessionId) {
         try {
+            if (!this.db) throw new Error("Firestore not initialized");
             await this.db.collection('sessions').doc(sessionId).update({
                 answer: answer,
                 answerTimestamp: new Date()
             });
-
             Utils.log('Signaling: Answer sent');
-
         } catch (error) {
             console.error('Signaling: Failed to send answer:', error);
             throw error;
@@ -222,6 +229,7 @@ class SignalingManager {
 
     async sendIceCandidate(candidate, sessionId) {
         try {
+            if (!this.db) throw new Error("Firestore not initialized");
             await this.db
                 .collection('sessions')
                 .doc(sessionId)
@@ -231,19 +239,19 @@ class SignalingManager {
                     peerId: this.peerId,
                     timestamp: new Date()
                 });
-
             Utils.log('Signaling: ICE candidate sent');
-
         } catch (error) {
             console.error('Signaling: Failed to send ICE candidate:', error);
+            // Don't throw, as this might be non-fatal
         }
     }
 
     async findAvailablePeers() {
         try {
+            if (!this.db) return [];
             // Find peers with same public IP but different role
             const targetRole = this.role === 'interface' ? 'navigator' : 'interface';
-            // Cutoff: 22 seconds ago (allows for 2 missed 10s heartbeats + buffer)
+            // Cutoff: 22 seconds ago
             const cutoffTime = new Date(Date.now() - 22000);
 
             const snapshot = await this.db
@@ -253,11 +261,10 @@ class SignalingManager {
                 .where('status', '==', 'available')
                 .where('lastSeen', '>', cutoffTime)
                 .get();
-
             const peers = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
-                // Serialize Firestore Timestamp to ISO string to avoid 'Invalid Date' and serialization issues
+                // Serialize Firestore Timestamp to ISO string
                 if (data.lastSeen && data.lastSeen.toDate) {
                     data.lastSeen = data.lastSeen.toDate().toISOString();
                 } else if (data.lastSeen instanceof Date) {
@@ -266,7 +273,7 @@ class SignalingManager {
                 peers.push({ id: doc.id, ...data });
             });
 
-            // Sort by lastSeen descending to prefer most recently active peer
+            // Sort by lastSeen descending
             peers.sort((a, b) => {
                 const timeA = new Date(a.lastSeen).getTime();
                 const timeB = new Date(b.lastSeen).getTime();
@@ -275,10 +282,9 @@ class SignalingManager {
 
             Utils.log(`Signaling: Found ${peers.length} available peers`);
             return peers;
-
         } catch (error) {
             console.error('Signaling: Failed to find peers:', error);
-            return [];
+            return []; // Return empty array on error
         }
     }
 
@@ -286,23 +292,26 @@ class SignalingManager {
         // Clear heartbeat
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
         }
 
         // Unsubscribe from all listeners
-        this.unsubscribeCallbacks.forEach(unsubscribe => {
-            try {
-                unsubscribe();
-            } catch (error) {
-                console.error('Signaling: Error unsubscribing:', error);
+        while (this.unsubscribeCallbacks.length > 0) {
+            const unsubscribe = this.unsubscribeCallbacks.pop();
+            if (typeof unsubscribe === 'function') {
+                try {
+                    unsubscribe();
+                } catch (error) {
+                    console.error('Signaling: Error unsubscribing listener:', error);
+                }
             }
-        });
-        this.unsubscribeCallbacks = [];
+        }
 
         // Update peer status to offline
         if (this.db && this.peerId) {
             this.db.collection('peers').doc(this.peerId).update({
                 status: 'offline',
-                lastSeen: window.firebase.firestore.FieldValue.serverTimestamp()
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
             }).catch(error => {
                 console.error('Signaling: Failed to update offline status:', error);
             });
@@ -310,20 +319,39 @@ class SignalingManager {
 
         Utils.log('Signaling: Cleanup completed');
     }
+
+    async cleanupSession(sessionId) {
+        try {
+            if (!this.db) return;
+            // Remove the session document
+            await this.db.collection('sessions').doc(sessionId).delete();
+            // Also remove any ICE candidates
+            const candidates = await this.db.collection('sessions')
+                .doc(sessionId)
+                .collection('candidates')
+                .get();
+            const batch = this.db.batch();
+            candidates.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error('Signaling: Failed to cleanup session:', error);
+        }
+    }
 }
 
 // Mock Firestore for development/testing
+// (This part remains the same)
 class MockFirestore {
     constructor() {
         this.collections = {};
         this.listeners = [];
     }
-
     collection(name) {
         if (!this.collections[name]) {
             this.collections[name] = {};
         }
-
         return {
             doc: (id) => ({
                 set: async (data) => {

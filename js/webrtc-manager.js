@@ -12,11 +12,13 @@ class WebRTCManager {
         this.publicIP = null;
         this.sessionId = null;
         this.isConnected = false;
-        
+        this.signalingState = 'initializing';
+        this.isProcessingOffer = false;
+
         // Callbacks
-        this.onConnectionChange = onConnectionChange || (() => {});
-        this.onDataReceived = onDataReceived || (() => {});
-        
+        this.onConnectionChange = onConnectionChange || (() => { });
+        this.onDataReceived = onDataReceived || (() => { });
+
         // WebRTC configuration
         this.rtcConfig = {
             iceServers: [
@@ -24,7 +26,7 @@ class WebRTCManager {
                 { urls: 'stun:stun1.l.google.com:19302' }
             ]
         };
-        
+
         this.init();
     }
 
@@ -33,29 +35,31 @@ class WebRTCManager {
             // Get public IP first
             this.publicIP = await this.getPublicIP();
             Utils.log(`WebRTC: Public IP detected: ${this.publicIP}`);
-            
+
             // Initialize signaling
             this.signalingManager = new SignalingManager(this.publicIP, this.role);
             await this.signalingManager.init();
-            
+
             // Register as available peer
+            this.setSignalingState('registering');
             await this.registerAsPeer();
-            
+            this.setSignalingState('waiting');
+
             // Listen for connection requests
             this.signalingManager.onOfferReceived = (offer, sessionId) => {
                 this.handleOffer(offer, sessionId);
             };
-            
+
             this.signalingManager.onAnswerReceived = (answer) => {
                 this.handleAnswer(answer);
             };
-            
+
             this.signalingManager.onIceCandidateReceived = (candidate) => {
                 this.handleIceCandidate(candidate);
             };
-            
+
             Utils.log('WebRTC: Manager initialized successfully');
-            
+
         } catch (error) {
             console.error('WebRTC: Initialization failed:', error);
         }
@@ -84,7 +88,7 @@ class WebRTCManager {
     async createPeerConnection() {
         try {
             this.peerConnection = new RTCPeerConnection(this.rtcConfig);
-            
+
             // Handle ICE candidates
             this.peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
@@ -92,29 +96,44 @@ class WebRTCManager {
                     this.signalingManager.sendIceCandidate(event.candidate, this.sessionId);
                 }
             };
-            
+
             // Handle connection state changes
             this.peerConnection.onconnectionstatechange = () => {
                 const state = this.peerConnection.connectionState;
                 Utils.log(`WebRTC: Connection state: ${state}`);
-                
+
                 this.isConnected = state === 'connected';
-                this.onConnectionChange(this.isConnected, state);
-                
+                this.onConnectionChange(this.isConnected, state, this.signalingState);
+
                 if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                    this.cleanup();
+                    // Only trigger if we were previously connected or if it's a failure during connection
+                    Utils.log('WebRTC: Connection lost, attempting to reconnect...');
+                    this.setSignalingState('reconnecting');
+
+                    // Delay restart to avoid rapid cycles and allow UI update
+                    setTimeout(() => {
+                        this.restart();
+                    }, 3000);
                 }
             };
-            
+
+            this.peerConnection.oniceconnectionstatechange = () => {
+                const iceState = this.peerConnection.iceConnectionState;
+                Utils.log(`WebRTC: ICE connection state: ${iceState}`);
+                if (iceState === 'failed' || iceState === 'disconnected') {
+                    Utils.log('WebRTC: ICE connection lost');
+                }
+            };
+
             // Handle incoming data channel (from navigator)
             this.peerConnection.ondatachannel = (event) => {
                 const channel = event.channel;
                 this.setupDataChannel(channel);
                 Utils.log('WebRTC: Data channel received from peer');
             };
-            
+
             Utils.log('WebRTC: Peer connection created');
-            
+
         } catch (error) {
             console.error('WebRTC: Failed to create peer connection:', error);
             throw error;
@@ -123,53 +142,65 @@ class WebRTCManager {
 
     setupDataChannel(channel) {
         this.dataChannel = channel;
-        
+
         this.dataChannel.onopen = () => {
             Utils.log('WebRTC: Data channel opened');
-            this.onConnectionChange(true, 'connected');
+            this.onConnectionChange(true, 'connected', this.signalingState);
         };
-        
+
         this.dataChannel.onclose = () => {
             Utils.log('WebRTC: Data channel closed');
-            this.onConnectionChange(false, 'closed');
+            this.onConnectionChange(false, 'closed', this.signalingState);
         };
-        
+
         this.dataChannel.onerror = (error) => {
             console.error('WebRTC: Data channel error:', error);
         };
-        
+
         this.dataChannel.onmessage = (event) => {
             try {
+                // Try to parse as JSON first
                 const data = JSON.parse(event.data);
-                Utils.log('WebRTC: Received data:', data);
+                Utils.log('WebRTC: Received JSON data:', data);
                 this.onDataReceived(data);
             } catch (error) {
-                console.error('WebRTC: Failed to parse received data:', error);
+                // If parsing fails, it might be a raw string message
+                Utils.log('WebRTC: Received raw data:', event.data);
+                this.onDataReceived(event.data);
             }
         };
     }
 
     async handleOffer(offer, sessionId) {
+        if (this.isProcessingOffer || (this.sessionId === sessionId && this.peerConnection)) {
+            Utils.log(`WebRTC: Ignoring redundant offer for session ${sessionId}`);
+            return;
+        }
+
         try {
+            this.isProcessingOffer = true;
+            this.setSignalingState('received_offer');
             this.sessionId = sessionId;
-            
+
             if (!this.peerConnection) {
                 await this.createPeerConnection();
             }
-            
+
             Utils.log('WebRTC: Handling offer from navigator');
-            
+
             await this.peerConnection.setRemoteDescription(offer);
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
-            
+
             // Send answer back
             await this.signalingManager.sendAnswer(answer, sessionId);
-            
+
             Utils.log('WebRTC: Answer sent');
-            
+
         } catch (error) {
             console.error('WebRTC: Failed to handle offer:', error);
+        } finally {
+            this.isProcessingOffer = false;
         }
     }
 
@@ -218,9 +249,17 @@ class WebRTCManager {
             isConnected: this.isConnected,
             hasDataChannel: !!this.dataChannel,
             connectionState: this.peerConnection?.connectionState || 'new',
+            signalingState: this.signalingState,
             sessionId: this.sessionId,
+            peerId: this.signalingManager?.peerId,
             publicIP: this.publicIP
         };
+    }
+
+    setSignalingState(state) {
+        this.signalingState = state;
+        Utils.log(`WebRTC: Signaling state: ${state}`);
+        this.onConnectionChange(this.isConnected, this.peerConnection?.connectionState || 'new', state);
     }
 
     // Cleanup connections
@@ -229,19 +268,19 @@ class WebRTCManager {
             this.dataChannel.close();
             this.dataChannel = null;
         }
-        
+
         if (this.peerConnection) {
             this.peerConnection.close();
             this.peerConnection = null;
         }
-        
+
         if (this.signalingManager) {
             this.signalingManager.cleanup();
         }
-        
+
         this.isConnected = false;
         this.sessionId = null;
-        
+
         Utils.log('WebRTC: Cleanup completed');
     }
 

@@ -23,8 +23,9 @@ TOMAT Light is a smartphone alternative to the **TOMAT hardware device** (a "rem
 ### **Components:**  
 - **TOMAT Light PWA** (smartphone app).  
 - **External Services**:  
-  - *TOMAT Navigator* Chrome extension.  
-  - Service discovery server (for connection handshake).  
+  - *TOMAT Navigator* Chrome extension.
+  - **Firestore Signaling System**: Handles peer discovery, handshakes, and presence (acts as the "discovery server").
+  
 
 ### **Architecture Decisions:**  
 - **PWA**: Simplifies development/distribution vs. native apps.  
@@ -32,8 +33,16 @@ TOMAT Light is a smartphone alternative to the **TOMAT hardware device** (a "rem
 
 ### **PWA Modules:**  
 1. **Communications**:  
-   - Manages WebRTC connections/data channels with peers.  
+   - Manages WebRTC connections/data channels with peers.
+   - **Bidirectional Messaging**: Supports real-time exchange of both control commands (vibration) and arbitrary string messages (with echoing).
 2. **Interface Manager**:  
    - Simulated vibrator array (haptic feedback).  
    - Simulated buttons (sends `down`/`up` events).  
    - Quit button (exits app).  
+
+### **4. Technical Implementation Notes**
+- **Serialization**: All signaling data (SDP, ICE candidates) is serialized to JSON before transmission via Firestore.
+- **State Management**: Heartbeats are used to track peer availability. Offline peers are automatically filtered by the discovery logic after 60 seconds of inactivity.
+- **Handshake**: Initiators use a "listen-before-offer" pattern to prevent race conditions.
+- **Reliability**: Sidebar-to-Background communication in the extension ensures that WebRTC state is maintained even if the sidebar is closed and reopened.
+
