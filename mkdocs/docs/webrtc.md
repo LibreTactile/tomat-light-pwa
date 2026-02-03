@@ -14,8 +14,8 @@ For a simple solution we will use a real-time database as a signaling server (sa
 #### Using Firebase
 
 - **Signaling messages** (offer, answer, ICE candidates, presence/availability, peers public IP & "role") are stored as documents/records.
-- The PWA registers itself as available by writing to the database.
-- The Chrome extension queries the database to find peers (the "discovery" phase).
+- The PWA registers itself as available by writing to the database using a **deterministic ID** based on its public IP and User Agent.
+- The Chrome extension queries the database to find peers (the "discovery" phase) using **server-side timestamps** to filter out stale peers.
 - Signaling data is exchanged using database updates until the WebRTC connection is established.
 - No static IP or complex server maintenance required—just a Firebase project.
 
@@ -54,3 +54,7 @@ To avoid race conditions, the initiating peer (navigator) must set up listeners 
 
 #### 3. Connection Monitoring
 Monitoring `iceConnectionState` and `connectionState` is critical for identifying network issues. Connection failures should trigger a standardized cleanup and retry logic to ensure the peer remains available for future attempts.
+
+#### 4. Peer Identification & Cleanup
+- **Deterministic IDs**: Peers generate IDs by hashing their Public IP + User Agent. This ensures that reloading the page or reopening the browser on the same device results in the same Peer ID, preventing duplicate "ghost" peers.
+- **Server Timestamps**: All heartbeat (`lastSeen`) and registration timestamps use `serverTimestamp()` (Firestore server time) instead of client-side `new Date()`. This prevents clock skew from causing stale peers to appear online.

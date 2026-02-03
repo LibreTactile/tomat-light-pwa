@@ -12,7 +12,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const peers = response || [];
 
     if (peers.length > 0) {
-      await connectToPeer(peers[0].peerId);
+      // Re-sort in sidebar to be absolutely sure (handling JSON serialization dates)
+      peers.sort((a, b) => {
+        const timeA = new Date(a.lastSeen).getTime();
+        const timeB = new Date(b.lastSeen).getTime();
+        return timeB - timeA;
+      });
+
+      const bestPeer = peers[0];
+      console.log(`Connecting to most recent peer: ${bestPeer.peerId} (Last seen: ${new Date(bestPeer.lastSeen).toLocaleTimeString()})`);
+      if (peers.length > 1) {
+        console.log(`(Skipped ${peers.length - 1} older/stale peers)`);
+      }
+
+      await connectToPeer(bestPeer.peerId);
     } else {
       document.getElementById('status').textContent = 'No peers found. Retrying...';
       setTimeout(reconnect, 3000);
@@ -30,17 +43,27 @@ async function connectToPeer(peerId) {
 
     // Initialize WebRTC with proper callbacks
     webrtcManager = new WebRTCManager({
-      sendIceCandidate: async (candidate) => {
-        if (currentSessionId) {
-          try {
-            await chrome.runtime.sendMessage({
-              type: 'sendIceCandidate',
-              candidate,
-              sessionId: currentSessionId
-            });
-          } catch (error) {
-            console.error('Failed to send ICE candidate:', error);
+      signalingDelegate: {
+        sendIceCandidate: async (candidate) => {
+          if (currentSessionId) {
+            try {
+              await chrome.runtime.sendMessage({
+                type: 'sendIceCandidate',
+                candidate,
+                sessionId: currentSessionId
+              });
+            } catch (error) {
+              console.error('Failed to send ICE candidate:', error);
+            }
           }
+        }
+      },
+      onConnectionStateChange: (state) => {
+        console.log('Sidebar: Connection state changed to:', state);
+        if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+          document.getElementById('status').textContent = 'Connection lost. Reconnecting...';
+          // Wait a bit then reconnect
+          setTimeout(reconnect, 3000);
         }
       }
     });

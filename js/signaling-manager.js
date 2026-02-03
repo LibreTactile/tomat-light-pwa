@@ -39,9 +39,17 @@ class SignalingManager {
             }
 
             this.db = window.firebase.firestore();
-            this.peerId = this.generatePeerId();
 
-            Utils.log(`Signaling: Initialized with peer ID: ${this.peerId}`);
+            // Try to recover existing peer ID from localStorage
+            const savedPeerId = localStorage.getItem('tomat_peer_id_' + this.role);
+            if (savedPeerId) {
+                this.peerId = savedPeerId;
+                Utils.log(`Signaling: Recovered existing peer ID: ${this.peerId}`);
+            } else {
+                this.peerId = this.generatePeerId();
+                localStorage.setItem('tomat_peer_id_' + this.role, this.peerId);
+                Utils.log(`Signaling: Generated new peer ID: ${this.peerId}`);
+            }
 
         } catch (error) {
             console.error('Signaling: Initialization failed:', error);
@@ -57,7 +65,16 @@ class SignalingManager {
     }
 
     generatePeerId() {
-        return `${this.role}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Create a simple hash from publicIP and userAgent to ensure static ID for device/network
+        const fingerprint = `${this.publicIP}_${navigator.userAgent}`;
+        let hash = 0;
+        for (let i = 0; i < fingerprint.length; i++) {
+            const char = fingerprint.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        const hashStr = Math.abs(hash).toString(16);
+        return `${this.role}_${hashStr}`;
     }
 
     async registerPeer() {
@@ -68,8 +85,8 @@ class SignalingManager {
                 role: this.role,
                 publicIP: this.publicIP,
                 status: 'available',
-                timestamp: new Date(),
-                lastSeen: new Date()
+                timestamp: window.firebase.firestore.FieldValue.serverTimestamp(),
+                lastSeen: window.firebase.firestore.FieldValue.serverTimestamp()
             };
 
             await this.db.collection('peers').doc(this.peerId).set(peerData);
@@ -91,16 +108,16 @@ class SignalingManager {
     }
 
     startHeartbeat() {
-        // Update lastSeen every 30 seconds
+        // Update lastSeen every 10 seconds (optimized from 30s)
         this.heartbeatInterval = setInterval(async () => {
             try {
                 await this.db.collection('peers').doc(this.peerId).update({
-                    lastSeen: new Date()
+                    lastSeen: window.firebase.firestore.FieldValue.serverTimestamp()
                 });
             } catch (error) {
                 console.error('Signaling: Heartbeat failed:', error);
             }
-        }, 30000);
+        }, 10000);
     }
 
     listenForOffers() {
@@ -226,7 +243,8 @@ class SignalingManager {
         try {
             // Find peers with same public IP but different role
             const targetRole = this.role === 'interface' ? 'navigator' : 'interface';
-            const cutoffTime = new Date(Date.now() - 60000); // 1 minute ago
+            // Cutoff: 22 seconds ago (allows for 2 missed 10s heartbeats + buffer)
+            const cutoffTime = new Date(Date.now() - 22000);
 
             const snapshot = await this.db
                 .collection('peers')
@@ -238,7 +256,21 @@ class SignalingManager {
 
             const peers = [];
             snapshot.forEach(doc => {
-                peers.push({ id: doc.id, ...doc.data() });
+                const data = doc.data();
+                // Serialize Firestore Timestamp to ISO string to avoid 'Invalid Date' and serialization issues
+                if (data.lastSeen && data.lastSeen.toDate) {
+                    data.lastSeen = data.lastSeen.toDate().toISOString();
+                } else if (data.lastSeen instanceof Date) {
+                    data.lastSeen = data.lastSeen.toISOString();
+                }
+                peers.push({ id: doc.id, ...data });
+            });
+
+            // Sort by lastSeen descending to prefer most recently active peer
+            peers.sort((a, b) => {
+                const timeA = new Date(a.lastSeen).getTime();
+                const timeB = new Date(b.lastSeen).getTime();
+                return timeB - timeA;
             });
 
             Utils.log(`Signaling: Found ${peers.length} available peers`);
@@ -270,7 +302,7 @@ class SignalingManager {
         if (this.db && this.peerId) {
             this.db.collection('peers').doc(this.peerId).update({
                 status: 'offline',
-                lastSeen: new Date()
+                lastSeen: window.firebase.firestore.FieldValue.serverTimestamp()
             }).catch(error => {
                 console.error('Signaling: Failed to update offline status:', error);
             });

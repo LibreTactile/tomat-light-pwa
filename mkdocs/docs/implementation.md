@@ -40,7 +40,8 @@ The WebRTC manager handles peer-to-peer connections with the TOMAT Navigator ext
 
 **Key Features:**
 - Manages WebRTC data channels
-- Handles signaling via discovery server
+- Handles signaling via discovery server (Firestore)
+- **Deterministic Peer IDs** for robust reconnections
 - Maintains connection state
 - Facilitates bidirectional communication
 

@@ -207,14 +207,15 @@ class VibrationPWA {
             'registering': 'Registering as available peer...',
             'waiting': 'Waiting for peers...',
             'received_offer': 'Signal received, connecting...',
-            'connecting': 'Establishing peer connection...'
+            'connecting': 'Establishing peer connection...',
+            'reconnecting': 'Trying to reconnect...'
         };
 
         this.statusIndicator.textContent = indicators[state] || '⚫';
 
         // Use signaling message if not connected/connecting at WebRTC level
         let message = messages[state] || 'Unknown state';
-        if (state === 'new' || state === 'connecting') {
+        if (state === 'new' || state === 'connecting' || signalingState === 'reconnecting') {
             message = signalingMessages[signalingState] || message;
         }
         this.statusText.textContent = message;

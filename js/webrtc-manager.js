@@ -105,7 +105,14 @@ class WebRTCManager {
                 this.onConnectionChange(this.isConnected, state);
 
                 if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                    this.cleanup();
+                    // Only trigger if we were previously connected or if it's a failure during connection
+                    Utils.log('WebRTC: Connection lost, attempting to reconnect...');
+                    this.setSignalingState('reconnecting');
+
+                    // Delay restart to avoid rapid cycles and allow UI update
+                    setTimeout(() => {
+                        this.restart();
+                    }, 3000);
                 }
             };
 

@@ -1,8 +1,9 @@
 class WebRTCManager {
-  constructor(signalingDelegate) {
+  constructor(options) {
     this.peerConnection = null;
     this.dataChannels = {};
-    this.signalingDelegate = signalingDelegate;
+    this.signalingDelegate = options.signalingDelegate || options; // backward compatibility
+    this.onConnectionStateChange = options.onConnectionStateChange || (() => { });
     this.connectionState = 'new';
 
     this.iceServers = {
@@ -60,6 +61,7 @@ class WebRTCManager {
     this.peerConnection.onconnectionstatechange = () => {
       this.connectionState = this.peerConnection.connectionState;
       console.log('Connection state changed:', this.connectionState);
+      this.onConnectionStateChange(this.connectionState);
 
       if (this.connectionState === 'failed') {
         console.error('WebRTC connection failed');

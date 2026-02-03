@@ -2,9 +2,9 @@ How It Works
 
     The extension starts up and initializes Firebase connection
 
-    It registers itself as a "navigator" peer in Firestore
+    It registers itself as a "navigator" peer in Firestore using server-side timestamps.
 
-    It periodically checks for available "interface" peers
+    It periodically queries for available "interface" peers, filtering out those that haven't updated their `lastSeen` timestamp (server-time) in the last ~20 seconds.
 
     When an interface is found, it initiates a WebRTC connection. It sets up message listeners first to avoid race conditions during the handshake.
 
