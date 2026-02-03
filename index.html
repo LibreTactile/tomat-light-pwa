@@ -31,13 +31,16 @@
     <div class="background-animation"></div>
 
     <div class="container">
-        <h1 class="title">Tomat Light PWA 6</h1>
+        <h1 class="title">Tomat Light PWA 0.8</h1>
         <p class="subtitle">Slide your finger into the button area to vibrate</p>
 
         <!-- WebRTC Connection Status -->
         <div class="connection-status" id="connectionStatus">
-            <span class="status-indicator" id="statusIndicator">⚫</span>
-            <span class="status-text" id="statusText">Connecting...</span>
+            <div class="status-main">
+                <span class="status-indicator" id="statusIndicator">⚫</span>
+                <span class="status-text" id="statusText">Connecting...</span>
+            </div>
+            <div class="status-details" id="statusDetails"></div>
         </div>
 
         <button class="vibrate-button" id="vibrateBtn">
@@ -47,41 +50,35 @@
             </div>
         </button>
 
-        <div class="status" id="status"></div>
+        <div id="messageLog" class="message-log">Waiting for messages...</div>
 
-        <!-- WebRTC Controls -->
-        <div class="webrtc-controls" id="webrtcControls">
-            <button class="control-button" id="reconnectBtn">🔄 Reconnect</button>
-            <button class="control-button" id="debugBtn">🐛 Debug</button>
+
+        <div class="debug-info" id="debugInfo">
+            <div id="debugContent"></div>
+            <button class="control-button test-btn" id="testVibrateBtn"
+                style="width: 100%; margin-top: 1rem; background: #e94560;">🔥 Test Physical Vibration (1s)</button>
         </div>
-    </div>
 
-    <div class="debug-info" id="debugInfo">
-        <div id="debugContent"></div>
-        <button class="control-button test-btn" id="testVibrateBtn"
-            style="width: 100%; margin-top: 1rem; background: #e94560;">🔥 Test Physical Vibration (1s)</button>
-    </div>
+        <div class="install-prompt" id="installPrompt">
+            <h3 style="margin-bottom: 1rem;">Install Vibration PWA</h3>
+            <p style="margin-bottom: 1rem; opacity: 0.8;">Add this app to your home screen for the best experience!</p>
+            <button class="install-button" id="installBtn">Install App</button>
+            <button class="close-button" id="closeBtn">Maybe Later</button>
+        </div>
 
-    <div class="install-prompt" id="installPrompt">
-        <h3 style="margin-bottom: 1rem;">Install Vibration PWA</h3>
-        <p style="margin-bottom: 1rem; opacity: 0.8;">Add this app to your home screen for the best experience!</p>
-        <button class="install-button" id="installBtn">Install App</button>
-        <button class="close-button" id="closeBtn">Maybe Later</button>
-    </div>
+        <div class="service-worker-status" id="swStatus"></div>
 
-    <div class="service-worker-status" id="swStatus"></div>
+        <!-- Firebase SDK -->
+        <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
-
-    <!-- JavaScript Modules -->
-    <script src="./js/utils.js"></script>
-    <script src="./js/signaling-manager.js"></script>
-    <script src="./js/webrtc-manager.js"></script>
-    <script src="./js/vibration-handler.js"></script>
-    <script src="./js/pwa-manager.js"></script>
-    <script src="./js/app.js"></script>
+        <!-- JavaScript Modules -->
+        <script src="./js/utils.js"></script>
+        <script src="./js/signaling-manager.js"></script>
+        <script src="./js/webrtc-manager.js"></script>
+        <script src="./js/vibration-handler.js"></script>
+        <script src="./js/pwa-manager.js"></script>
+        <script src="./js/app.js"></script>
 </body>
 
 </html>

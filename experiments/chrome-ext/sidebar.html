@@ -1,25 +1,68 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>WebRTC Sidebar</title>
   <script src="lib/webrtc-manager.js"></script>
   <script src="sidebar.js"></script>
   <style>
-    body { 
+    body {
       width: 300px;
       padding: 10px;
       font-family: Arial, sans-serif;
     }
+
     #status {
       margin: 10px 0;
       padding: 8px;
       background: #f0f0f0;
       border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .controls {
+      display: flex;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    #message-input {
+      flex-grow: 1;
+      padding: 5px;
+    }
+
+    #log {
+      margin-top: 15px;
+      padding: 8px;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      height: 150px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.85em;
+      white-space: pre-wrap;
+    }
+
+    .log-header {
+      font-weight: bold;
+      margin-bottom: 5px;
+      font-size: 0.8em;
+      color: #666;
     }
   </style>
 </head>
+
 <body>
   <h3>Vibration Controller</h3>
   <div id="status">Connecting...</div>
+
+  <div class="controls">
+    <input type="text" id="message-input" placeholder="Type a message..." disabled>
+    <button id="send-btn" disabled>Send</button>
+  </div>
+
+  <div class="log-header">Received Messages:</div>
+  <div id="log"></div>
 </body>
+
 </html>

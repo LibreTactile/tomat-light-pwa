@@ -21,9 +21,9 @@ class SignalingManager {
         try {
             // Check if Firebase is already loaded globally (it should be now)
             if (typeof firebase === 'undefined' || !firebase.initializeApp) {
-                 console.warn('Signaling: Firebase SDK not found globally, falling back to mock.');
-                 this.initMockSignaling();
-                 return; // Exit early if using mock
+                console.warn('Signaling: Firebase SDK not found globally, falling back to mock.');
+                this.initMockSignaling();
+                return; // Exit early if using mock
                 // throw new Error('Firebase SDK not loaded');
             }
 
@@ -36,8 +36,24 @@ class SignalingManager {
             }
             // Get Firestore instance
             this.db = firebase.firestore();
-            this.peerId = this.generatePeerId();
-            console.log(`Signaling: Initialized with peer ID: ${this.peerId}`);
+
+            // Try to recover existing peer ID from chrome.storage
+            const getStoredId = () => new Promise((resolve) => {
+                chrome.storage.local.get(['tomat_peer_id'], (result) => {
+                    resolve(result.tomat_peer_id);
+                });
+            });
+
+            const storedId = await getStoredId();
+            if (storedId) {
+                this.peerId = storedId;
+                console.log(`Signaling: Recovered existing peer ID: ${this.peerId}`);
+            } else {
+                this.peerId = this.generatePeerId();
+                chrome.storage.local.set({ 'tomat_peer_id': this.peerId });
+                console.log(`Signaling: Generated new peer ID: ${this.peerId}`);
+            }
+
         } catch (error) {
             console.error('Signaling: Initialization failed:', error);
             throw error;
@@ -66,8 +82,8 @@ class SignalingManager {
                 role: this.role,
                 publicIP: this.publicIP,
                 status: 'available',  // Make sure status is set to available initially
-                timestamp: new Date(),
-                lastSeen: new Date()
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
             };
             await this.db.collection('peers').doc(this.peerId).set(peerData);
             this.startHeartbeat();  // Start heartbeat after successful registration
@@ -88,28 +104,28 @@ class SignalingManager {
             clearInterval(this.heartbeatInterval);
             this.heartbeatInterval = null;
         }
-        
+
         // Initial update
         this.updateLastSeen().catch(error => {
             console.error('Signaling: Initial heartbeat failed:', error);
         });
-        
-        // Set up periodic updates every 30 seconds
+
+        // Set up periodic updates every 10 seconds (optimized)
         this.heartbeatInterval = setInterval(() => {
             this.updateLastSeen().catch(error => {
                 console.error('Signaling: Heartbeat failed:', error);
             });
-        }, 30000);
+        }, 10000);
     }
 
     async updateLastSeen() {
-    if (!this.db || !this.peerId) {
-        throw new Error('Cannot update lastSeen: db or peerId not initialized');
+        if (!this.db || !this.peerId) {
+            throw new Error('Cannot update lastSeen: db or peerId not initialized');
+        }
+        await this.db.collection('peers').doc(this.peerId).update({
+            lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+        });
     }
-    await this.db.collection('peers').doc(this.peerId).update({
-        lastSeen: new Date()
-    });
-}
 
     listenForOffers() {
         if (!this.db) return; // Guard if db not initialized
@@ -147,7 +163,7 @@ class SignalingManager {
                     this.onAnswerReceived(data.answer);
                 }
             }, (error) => {
-                 console.error("Signaling: Error listening for answer:", error);
+                console.error("Signaling: Error listening for answer:", error);
             });
         this.unsubscribeCallbacks.push(unsubscribe);
     }
@@ -169,7 +185,7 @@ class SignalingManager {
                     }
                 });
             }, (error) => {
-                 console.error("Signaling: Error listening for ICE candidates:", error);
+                console.error("Signaling: Error listening for ICE candidates:", error);
             });
         this.unsubscribeCallbacks.push(unsubscribe);
     }
@@ -199,7 +215,7 @@ class SignalingManager {
 
     async sendAnswer(answer, sessionId) {
         try {
-             if (!this.db) throw new Error("Firestore not initialized");
+            if (!this.db) throw new Error("Firestore not initialized");
             await this.db.collection('sessions').doc(sessionId).update({
                 answer: answer,
                 answerTimestamp: new Date()
@@ -213,13 +229,13 @@ class SignalingManager {
 
     async sendIceCandidate(candidate, sessionId) {
         try {
-             if (!this.db) throw new Error("Firestore not initialized");
+            if (!this.db) throw new Error("Firestore not initialized");
             await this.db
                 .collection('sessions')
                 .doc(sessionId)
                 .collection('candidates')
                 .add({
-                    candidate: candidate,
+                    candidate: JSON.parse(JSON.stringify(candidate)),
                     peerId: this.peerId,
                     timestamp: new Date()
                 });
@@ -232,10 +248,12 @@ class SignalingManager {
 
     async findAvailablePeers() {
         try {
-             if (!this.db) return [];
+            if (!this.db) return [];
             // Find peers with same public IP but different role
             const targetRole = this.role === 'interface' ? 'navigator' : 'interface';
-            const cutoffTime = new Date(Date.now() - 60000); // 1 minute ago
+            // Cutoff: 22 seconds ago
+            const cutoffTime = new Date(Date.now() - 22000);
+
             const snapshot = await this.db
                 .collection('peers')
                 .where('publicIP', '==', this.publicIP)
@@ -245,8 +263,23 @@ class SignalingManager {
                 .get();
             const peers = [];
             snapshot.forEach(doc => {
-                peers.push({ id: doc.id, ...doc.data() });
+                const data = doc.data();
+                // Serialize Firestore Timestamp to ISO string
+                if (data.lastSeen && data.lastSeen.toDate) {
+                    data.lastSeen = data.lastSeen.toDate().toISOString();
+                } else if (data.lastSeen instanceof Date) {
+                    data.lastSeen = data.lastSeen.toISOString();
+                }
+                peers.push({ id: doc.id, ...data });
             });
+
+            // Sort by lastSeen descending
+            peers.sort((a, b) => {
+                const timeA = new Date(a.lastSeen).getTime();
+                const timeB = new Date(b.lastSeen).getTime();
+                return timeB - timeA;
+            });
+
             Utils.log(`Signaling: Found ${peers.length} available peers`);
             return peers;
         } catch (error) {
@@ -261,9 +294,9 @@ class SignalingManager {
             clearInterval(this.heartbeatInterval);
             this.heartbeatInterval = null;
         }
-        
+
         // Unsubscribe from all listeners
-        while(this.unsubscribeCallbacks.length > 0) {
+        while (this.unsubscribeCallbacks.length > 0) {
             const unsubscribe = this.unsubscribeCallbacks.pop();
             if (typeof unsubscribe === 'function') {
                 try {
@@ -273,17 +306,17 @@ class SignalingManager {
                 }
             }
         }
-        
+
         // Update peer status to offline
         if (this.db && this.peerId) {
             this.db.collection('peers').doc(this.peerId).update({
                 status: 'offline',
-                lastSeen: new Date()
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
             }).catch(error => {
                 console.error('Signaling: Failed to update offline status:', error);
             });
         }
-        
+
         Utils.log('Signaling: Cleanup completed');
     }
 
@@ -357,7 +390,7 @@ class MockFirestore {
                                         docChanges: () => []
                                     });
                                 }, 100);
-                                return () => {}; // Unsubscribe function
+                                return () => { }; // Unsubscribe function
                             }
                         })
                     })
@@ -368,7 +401,7 @@ class MockFirestore {
                             docChanges: () => []
                         });
                     }, 100);
-                    return () => {};
+                    return () => { };
                 }
             })
         };
