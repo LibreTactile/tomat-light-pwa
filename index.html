@@ -1,50 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vibration PWA</title>
-    
+    <title>Tomat Light</title>
+
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#1a1a2e">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Vibration PWA">
-    
+    <meta name="apple-mobile-web-app-title" content="Tomat Light">
+
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📳</text></svg>">
-    
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📳</text></svg>">
+
     <!-- Apple Touch Icon -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><text x='90' y='130' font-size='90' text-anchor='middle' fill='white'>📳</text></svg>">
-    
+    <link rel="apple-touch-icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><text x='90' y='130' font-size='90' text-anchor='middle' fill='white'>📳</text></svg>">
+
     <!-- Web App Manifest -->
     <link rel="manifest" href="./manifest.json">
-    
+
     <!-- Stylesheets -->
     <link rel="stylesheet" href="./styles.css">
 </head>
+
 <body>
     <div class="background-animation"></div>
-    
+
     <div class="container">
-        <h1 class="title">Vibration PWA</h1>
+        <h1 class="title">Tomat Light PWA 6</h1>
         <p class="subtitle">Slide your finger into the button area to vibrate</p>
-        
+
         <!-- WebRTC Connection Status -->
         <div class="connection-status" id="connectionStatus">
             <span class="status-indicator" id="statusIndicator">⚫</span>
             <span class="status-text" id="statusText">Connecting...</span>
         </div>
-        
+
         <button class="vibrate-button" id="vibrateBtn">
             <div class="button-text">
                 <span class="button-icon">📳</span>
                 <span>VIBRATE</span>
             </div>
         </button>
-        
+
         <div class="status" id="status"></div>
-        
+
         <!-- WebRTC Controls -->
         <div class="webrtc-controls" id="webrtcControls">
             <button class="control-button" id="reconnectBtn">🔄 Reconnect</button>
@@ -52,7 +56,11 @@
         </div>
     </div>
 
-    <div class="debug-info" id="debugInfo"></div>
+    <div class="debug-info" id="debugInfo">
+        <div id="debugContent"></div>
+        <button class="control-button test-btn" id="testVibrateBtn"
+            style="width: 100%; margin-top: 1rem; background: #e94560;">🔥 Test Physical Vibration (1s)</button>
+    </div>
 
     <div class="install-prompt" id="installPrompt">
         <h3 style="margin-bottom: 1rem;">Install Vibration PWA</h3>
@@ -75,4 +83,5 @@
     <script src="./js/pwa-manager.js"></script>
     <script src="./js/app.js"></script>
 </body>
+
 </html>

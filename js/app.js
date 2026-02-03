@@ -13,7 +13,7 @@ class VibrationPWA {
         this.installBtn = document.getElementById('installBtn');
         this.closeBtn = document.getElementById('closeBtn');
         this.swStatus = document.getElementById('swStatus');
-        
+
         // WebRTC elements
         this.connectionStatus = document.getElementById('connectionStatus');
         this.statusIndicator = document.getElementById('statusIndicator');
@@ -21,14 +21,15 @@ class VibrationPWA {
         this.webrtcControls = document.getElementById('webrtcControls');
         this.reconnectBtn = document.getElementById('reconnectBtn');
         this.debugBtn = document.getElementById('debugBtn');
-        
+        this.testVibrateBtn = document.getElementById('testVibrateBtn');
+
         // Initialize components
         this.vibrationHandler = null;
         this.pwaManager = null;
         this.webrtcManager = null;
         this.backgroundAnimationInterval = null;
         this.debugMode = false;
-        
+
         this.init();
     }
 
@@ -65,26 +66,48 @@ class VibrationPWA {
         // Setup additional event listeners
         this.setupGlobalEventListeners();
         this.setupWebRTCEventListeners();
-        
+
         // Initialize background animation
         this.createBackgroundAnimation();
-        
+
         // Handle URL-based vibration trigger
         this.handleUrlVibration();
-        
+
         // Show PWA install prompt for iOS after delay
         this.handleIOSInstallPrompt();
-        
+
         Utils.log('Vibration PWA with WebRTC initialized successfully');
     }
 
     setupGlobalEventListeners() {
-        // Handle page visibility changes
+        // Handle page visibility changes — route through VibrationHandler so
+        // isVibrating state stays consistent. Previously this called
+        // navigator.vibrate(0) directly, which stopped the device but left
+        // isVibrating=true, corrupting state for all subsequent events.
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden && navigator.vibrate) {
-                navigator.vibrate(0); // Stop any ongoing vibration when page is hidden
+            if (document.hidden) {
+                this.vibrationHandler.stopAllVibration();
             }
         });
+
+        // Robust Debug Toggle (Double tap title)
+        // Using both touchstart (for instant mobile response) and click (for desktop)
+        const title = document.querySelector('.title');
+        let lastTapTime = 0;
+        const handleTap = (e) => {
+            const currentTime = Date.now();
+            const tapGap = currentTime - lastTapTime;
+
+            if (tapGap < 300 && tapGap > 0) {
+                this.toggleDebugMode();
+                lastTapTime = 0; // Reset
+            } else {
+                lastTapTime = currentTime;
+            }
+        };
+
+        title.addEventListener('touchstart', (e) => handleTap(e), { passive: true });
+        title.addEventListener('click', (e) => handleTap(e));
 
         // Handle URL-based vibration
         window.addEventListener('urlVibrate', () => {
@@ -95,8 +118,10 @@ class VibrationPWA {
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'Enter') {
                 e.preventDefault();
+                // triggerVibration() did not exist — was a silent crash that
+                // broke the keydown listener. Use quickVibrate() instead.
                 if (!this.vibrationHandler.isVibrating) {
-                    this.triggerVibration();
+                    this.vibrationHandler.quickVibrate();
                 }
             }
         });
@@ -123,33 +148,41 @@ class VibrationPWA {
             this.toggleDebugMode();
         });
 
+        // Test Vibrate button
+        if (this.testVibrateBtn) {
+            this.testVibrateBtn.addEventListener('click', () => {
+                if (this.vibrationHandler) {
+                    this.vibrationHandler.testVibration();
+                }
+            });
+        }
     }
 
     onConnectionChange(isConnected, state) {
         // Update connection status UI
         this.updateConnectionStatus(isConnected, state);
-        
+
         // Show/hide WebRTC controls
         this.webrtcControls.style.display = 'block';
-        
+
         // Update vibration handler with connection status
         if (this.vibrationHandler) {
             this.vibrationHandler.setWebRTCStatus(isConnected);
         }
-        
+
         Utils.log(`WebRTC connection changed: ${isConnected} (${state})`);
     }
 
     onDataReceived(data) {
         Utils.log('Received data from peer:', data);
-        
+
         // Handle different types of incoming data
         switch (data.type) {
             case 'control':
                 // Handle control commands
                 this.handleControlCommand(data);
                 break;
-                
+
             default:
                 Utils.log('Unknown data type received:', data.type);
         }
@@ -164,7 +197,7 @@ class VibrationPWA {
             'failed': '❌',
             'closed': '⚫'
         };
-        
+
         const messages = {
             'new': 'Initializing...',
             'connecting': 'Connecting to peer...',
@@ -173,10 +206,10 @@ class VibrationPWA {
             'failed': 'Connection failed',
             'closed': 'Connection closed'
         };
-        
+
         this.statusIndicator.textContent = indicators[state] || '⚫';
         this.statusText.textContent = messages[state] || 'Unknown state';
-        
+
         // Update connection status styling
         this.connectionStatus.className = `connection-status ${state}`;
     }
@@ -193,13 +226,13 @@ class VibrationPWA {
                     });
                 }
                 break;
-                
+
             case 'vibrate_pattern':
                 if (data.pattern) {
                     this.vibrationHandler.quickVibrate(data.pattern);
                 }
                 break;
-                
+
             default:
                 Utils.log('Unknown control command:', data.command);
         }
@@ -208,7 +241,7 @@ class VibrationPWA {
     async reconnectWebRTC() {
         this.statusText.textContent = 'Reconnecting...';
         this.statusIndicator.textContent = '🟡';
-        
+
         try {
             if (this.webrtcManager) {
                 await this.webrtcManager.restart();
@@ -222,12 +255,18 @@ class VibrationPWA {
 
     toggleDebugMode() {
         this.debugMode = !this.debugMode;
-        
+
+        // Sync with vibration handler
+        if (this.vibrationHandler) {
+            this.vibrationHandler.debugMode = this.debugMode;
+            this.vibrationHandler.updateDebugInfo();
+        }
+
         if (this.debugMode) {
             this.showDebugInfo();
             this.debugBtn.textContent = '🐛 Hide Debug';
         } else {
-            this.debugInfo.style.display = 'none';
+            this.debugInfo.classList.remove('show');
             this.debugBtn.textContent = '🐛 Debug';
         }
     }
@@ -235,7 +274,7 @@ class VibrationPWA {
     showDebugInfo() {
         const webrtcStatus = this.webrtcManager ? this.webrtcManager.getConnectionStatus() : null;
         const vibrationStatus = this.vibrationHandler ? this.vibrationHandler.getStatus() : null;
-        
+
         const debugData = {
             timestamp: new Date().toISOString(),
             webrtc: webrtcStatus,
@@ -247,17 +286,18 @@ class VibrationPWA {
                 orientation: screen.orientation?.type || 'unknown'
             }
         };
-        
-        this.debugInfo.innerHTML = `
+
+        const debugContent = this.debugInfo.querySelector('#debugContent') || this.debugInfo;
+        debugContent.innerHTML = `
             <h3>Debug Information</h3>
             <pre>${JSON.stringify(debugData, null, 2)}</pre>
         `;
-        this.debugInfo.style.display = 'block';
+        this.debugInfo.classList.add('show');
     }
 
     createBackgroundAnimation() {
         const backgroundAnim = document.querySelector('.background-animation');
-        
+
         this.backgroundAnimationInterval = setInterval(() => {
             if (!this.vibrationHandler.isVibrating && Math.random() > 0.7) {
                 Utils.createWave(
@@ -317,7 +357,7 @@ class VibrationPWA {
     // Method to get app status
     getAppStatus() {
         const webrtcStatus = this.webrtcManager ? this.webrtcManager.getConnectionStatus() : null;
-        
+
         return {
             vibrationSupported: !!navigator.vibrate,
             isVibrating: this.vibrationHandler.isVibrating,
@@ -333,15 +373,15 @@ class VibrationPWA {
         if (this.backgroundAnimationInterval) {
             clearInterval(this.backgroundAnimationInterval);
         }
-        
+
         if (this.vibrationHandler) {
             this.vibrationHandler.stopAllVibration();
         }
-        
+
         if (this.webrtcManager) {
             this.webrtcManager.cleanup();
         }
-        
+
         Utils.log('Vibration PWA destroyed');
     }
 }
@@ -352,7 +392,7 @@ let vibrationApp = null;
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     vibrationApp = new VibrationPWA();
-    
+
     // Make app available globally for debugging
     if (typeof window !== 'undefined') {
         window.vibrationApp = vibrationApp;
