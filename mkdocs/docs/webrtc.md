@@ -52,9 +52,16 @@ await db.collection('candidates').add(candidateData);
 #### 2. Handshake Reliability
 To avoid race conditions, the initiating peer (navigator) must set up listeners for the **answer** and **ICE candidates** *before* sending the offer to the signaling server. Failure to do so may result in missed signals if the remote peer responds extremely quickly.
 
-#### 3. Connection Monitoring
-Monitoring `iceConnectionState` and `connectionState` is critical for identifying network issues. Connection failures should trigger a standardized cleanup and retry logic to ensure the peer remains available for future attempts.
+#### 3. Connection Monitoring & UI Feedback
+Monitoring `iceConnectionState` and `connectionState` is critical for identifying network issues. 
+- **Dynamic UI**: Application states (like the "Send" button in the sidebar) should be bound to these connection states.
+- **Auto-Cleanup**: Connection failures should trigger a standardized cleanup and retry logic to ensure the peer remains available for future attempts.
 
-#### 4. Peer Identification & Cleanup
+#### 4. Bidirectional Data Exchange
+Beyond control commands, the WebRTC data channel is used for arbitrary string message exchange:
+- **String Messaging**: Simple strings can be sent directly across the channel.
+- **Echo Logic**: The PWA implements an "echo" listener that logs received strings and sends back an acknowledgment (e.g., `Echo: <message>`) to verify the link.
+
+#### 5. Peer Identification & Cleanup
 - **Deterministic IDs**: Peers generate IDs by hashing their Public IP + User Agent. This ensures that reloading the page or reopening the browser on the same device results in the same Peer ID, preventing duplicate "ghost" peers.
 - **Server Timestamps**: All heartbeat (`lastSeen`) and registration timestamps use `serverTimestamp()` (Firestore server time) instead of client-side `new Date()`. This prevents clock skew from causing stale peers to appear online.

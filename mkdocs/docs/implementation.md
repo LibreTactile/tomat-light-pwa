@@ -42,8 +42,8 @@ The WebRTC manager handles peer-to-peer connections with the TOMAT Navigator ext
 - Manages WebRTC data channels
 - Handles signaling via discovery server (Firestore)
 - **Deterministic Peer IDs** for robust reconnections
-- Maintains connection state
-- Facilitates bidirectional communication
+- Maintains connection state with dynamic UI updates
+- Facilitates bidirectional communication (Vibration control + Messaging)
 
 ```mermaid
 sequenceDiagram
@@ -62,9 +62,10 @@ sequenceDiagram
     Client->>PWA: ICE candidates exchange
     
     Note over Client,PWA: Data Exchange
-    Client->>PWA: JSON State Data (via data channel)
-    PWA->>Client: Button events (via data channel)
+    Client->>PWA: JSON State / String Message
+    PWA->>Client: Button events / Echo Response
 ```
+
 
 ### **2. State Management System**
 
@@ -389,4 +390,16 @@ sequenceDiagram
     
     User->>UI: Touch active button
     UI->>UI: Start vibration pattern
+
+### **6. Sidebar Controller (Chrome Extension)**
+
+The sidebar acts as the remote controller for the PWA.
+
+**Interaction Logic:**
+- **Connectivity**: Listens to `onConnectionStateChange`. When connected, enables the message input.
+- **Messaging**: 
+    - `dataChannel.send(text)`: Sends user input to the PWA.
+    - `dataChannel.onmessage`: Receives data from the PWA. If it's a string, it's logged to the UI; if it's JSON, it's processed as state data.
+- **Persistence**: Uses the extension background script to maintain the WebRTC session, allowing the sidebar to be closed and reopened without losing the peer connection.
+
 ```

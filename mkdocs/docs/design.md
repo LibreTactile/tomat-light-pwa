@@ -33,7 +33,8 @@ TOMAT Light is a smartphone alternative to the **TOMAT hardware device** (a "rem
 
 ### **PWA Modules:**  
 1. **Communications**:  
-   - Manages WebRTC connections/data channels with peers.  
+   - Manages WebRTC connections/data channels with peers.
+   - **Bidirectional Messaging**: Supports real-time exchange of both control commands (vibration) and arbitrary string messages (with echoing).
 2. **Interface Manager**:  
    - Simulated vibrator array (haptic feedback).  
    - Simulated buttons (sends `down`/`up` events).  
@@ -43,3 +44,5 @@ TOMAT Light is a smartphone alternative to the **TOMAT hardware device** (a "rem
 - **Serialization**: All signaling data (SDP, ICE candidates) is serialized to JSON before transmission via Firestore.
 - **State Management**: Heartbeats are used to track peer availability. Offline peers are automatically filtered by the discovery logic after 60 seconds of inactivity.
 - **Handshake**: Initiators use a "listen-before-offer" pattern to prevent race conditions.
+- **Reliability**: Sidebar-to-Background communication in the extension ensures that WebRTC state is maintained even if the sidebar is closed and reopened.
+
