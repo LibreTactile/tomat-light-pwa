@@ -13,14 +13,12 @@ class VibrationPWA {
         this.installBtn = document.getElementById('installBtn');
         this.closeBtn = document.getElementById('closeBtn');
         this.swStatus = document.getElementById('swStatus');
+        this.messageLog = document.getElementById('messageLog');
 
         // WebRTC elements
         this.connectionStatus = document.getElementById('connectionStatus');
         this.statusIndicator = document.getElementById('statusIndicator');
         this.statusText = document.getElementById('statusText');
-        this.webrtcControls = document.getElementById('webrtcControls');
-        this.reconnectBtn = document.getElementById('reconnectBtn');
-        this.debugBtn = document.getElementById('debugBtn');
         this.testVibrateBtn = document.getElementById('testVibrateBtn');
 
         // Initialize components
@@ -138,16 +136,6 @@ class VibrationPWA {
     }
 
     setupWebRTCEventListeners() {
-        // Reconnect button
-        this.reconnectBtn.addEventListener('click', () => {
-            this.reconnectWebRTC();
-        });
-
-        // Debug button
-        this.debugBtn.addEventListener('click', () => {
-            this.toggleDebugMode();
-        });
-
         // Test Vibrate button
         if (this.testVibrateBtn) {
             this.testVibrateBtn.addEventListener('click', () => {
@@ -162,14 +150,24 @@ class VibrationPWA {
         // Update connection status UI
         this.updateConnectionStatus(isConnected, state, signalingState);
 
-        // Show/hide WebRTC controls
-        this.webrtcControls.style.display = 'block';
-
         Utils.log(`WebRTC connection changed: ${isConnected} (${state}), signaling: ${signalingState}`);
     }
 
     onDataReceived(data) {
         Utils.log('Received data from peer:', data);
+
+        // Handle string messages
+        if (typeof data === 'string' || data.message) {
+            const msg = typeof data === 'string' ? data : data.message;
+            this.logMessage(msg);
+
+            // Echo back to peer
+            this.sendToPeer({
+                type: 'echo',
+                message: `Echo: ${msg}`,
+                timestamp: Date.now()
+            });
+        }
 
         // Handle different types of incoming data
         switch (data.type) {
@@ -234,6 +232,19 @@ class VibrationPWA {
         this.connectionStatus.className = `connection-status ${state} ${signalingState}`;
     }
 
+    logMessage(message) {
+        if (!this.messageLog) return;
+
+        Utils.log(`Message from peer: ${message}`);
+        this.messageLog.textContent = `Peer: ${message}`;
+        this.messageLog.classList.add('new-message');
+
+        // Remove highlight after a delay
+        setTimeout(() => {
+            this.messageLog.classList.remove('new-message');
+        }, 2000);
+    }
+
     handleControlCommand(data) {
         switch (data.command) {
             case 'ping':
@@ -258,20 +269,6 @@ class VibrationPWA {
         }
     }
 
-    async reconnectWebRTC() {
-        this.statusText.textContent = 'Reconnecting...';
-        this.statusIndicator.textContent = '🟡';
-
-        try {
-            if (this.webrtcManager) {
-                await this.webrtcManager.restart();
-            }
-        } catch (error) {
-            console.error('Failed to reconnect WebRTC:', error);
-            this.statusText.textContent = 'Reconnection failed';
-            this.statusIndicator.textContent = '❌';
-        }
-    }
 
     toggleDebugMode() {
         this.debugMode = !this.debugMode;
@@ -284,10 +281,8 @@ class VibrationPWA {
 
         if (this.debugMode) {
             this.showDebugInfo();
-            this.debugBtn.textContent = '🐛 Hide Debug';
         } else {
             this.debugInfo.classList.remove('show');
-            this.debugBtn.textContent = '🐛 Debug';
         }
     }
 

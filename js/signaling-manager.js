@@ -129,7 +129,7 @@ class SignalingManager {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         const data = change.doc.data();
-                        Utils.log('Signaling: Received offer');
+                        Utils.log(`Signaling: Received offer (Session: ${change.doc.id})`);
 
                         if (this.onOfferReceived) {
                             this.onOfferReceived(data.offer, change.doc.id);

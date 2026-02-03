@@ -13,6 +13,7 @@ class WebRTCManager {
         this.sessionId = null;
         this.isConnected = false;
         this.signalingState = 'initializing';
+        this.isProcessingOffer = false;
 
         // Callbacks
         this.onConnectionChange = onConnectionChange || (() => { });
@@ -102,7 +103,7 @@ class WebRTCManager {
                 Utils.log(`WebRTC: Connection state: ${state}`);
 
                 this.isConnected = state === 'connected';
-                this.onConnectionChange(this.isConnected, state);
+                this.onConnectionChange(this.isConnected, state, this.signalingState);
 
                 if (state === 'failed' || state === 'disconnected' || state === 'closed') {
                     // Only trigger if we were previously connected or if it's a failure during connection
@@ -144,12 +145,12 @@ class WebRTCManager {
 
         this.dataChannel.onopen = () => {
             Utils.log('WebRTC: Data channel opened');
-            this.onConnectionChange(true, 'connected');
+            this.onConnectionChange(true, 'connected', this.signalingState);
         };
 
         this.dataChannel.onclose = () => {
             Utils.log('WebRTC: Data channel closed');
-            this.onConnectionChange(false, 'closed');
+            this.onConnectionChange(false, 'closed', this.signalingState);
         };
 
         this.dataChannel.onerror = (error) => {
@@ -158,17 +159,26 @@ class WebRTCManager {
 
         this.dataChannel.onmessage = (event) => {
             try {
+                // Try to parse as JSON first
                 const data = JSON.parse(event.data);
-                Utils.log('WebRTC: Received data:', data);
+                Utils.log('WebRTC: Received JSON data:', data);
                 this.onDataReceived(data);
             } catch (error) {
-                console.error('WebRTC: Failed to parse received data:', error);
+                // If parsing fails, it might be a raw string message
+                Utils.log('WebRTC: Received raw data:', event.data);
+                this.onDataReceived(event.data);
             }
         };
     }
 
     async handleOffer(offer, sessionId) {
+        if (this.isProcessingOffer || (this.sessionId === sessionId && this.peerConnection)) {
+            Utils.log(`WebRTC: Ignoring redundant offer for session ${sessionId}`);
+            return;
+        }
+
         try {
+            this.isProcessingOffer = true;
             this.setSignalingState('received_offer');
             this.sessionId = sessionId;
 
@@ -189,6 +199,8 @@ class WebRTCManager {
 
         } catch (error) {
             console.error('WebRTC: Failed to handle offer:', error);
+        } finally {
+            this.isProcessingOffer = false;
         }
     }
 

@@ -4,8 +4,60 @@ let webrtcManager;
 let signalingManager;
 let publicIP;
 let currentSessionId;
+let dataChannel;
+let messageInput;
+let sendBtn;
+let logArea;
+let currentTargetPeerId;
+
+// Move message listener to global scope and add once
+const backgroundMessageHandler = (message) => {
+  if (message.type === 'answerReceived') {
+    console.log('Background: Received answer for potential processing');
+    if (webrtcManager && message.answer) {
+      webrtcManager.handleAnswer(message.answer).then(() => {
+        console.log('Handshake: Answer processed successfully');
+        const statusEl = document.getElementById('status');
+        if (statusEl) statusEl.textContent = 'Negotiating connection...';
+      }).catch((error) => {
+        console.error('Handshake: Failed to handle answer:', error);
+      });
+    }
+  } else if (message.type === 'iceCandidateReceived') {
+    console.log('Background: Received ICE candidate');
+    if (webrtcManager && message.candidate) {
+      webrtcManager.handleIceCandidate(message.candidate).catch((error) => {
+        console.error('Handshake: Failed to handle ICE candidate:', error);
+      });
+    }
+  }
+};
+
+chrome.runtime.onMessage.addListener(backgroundMessageHandler);
+
+function updateUIState(connected) {
+  if (!messageInput || !sendBtn) return;
+  messageInput.disabled = !connected;
+  sendBtn.disabled = !connected;
+  if (connected) {
+    messageInput.focus();
+  }
+}
+
+function addToLog(message, type = 'received') {
+  if (!logArea) return;
+  const time = new Date().toLocaleTimeString();
+  const entry = `[${time}] ${type === 'sent' ? 'OUT: ' : 'IN:  '} ${message}\n`;
+  logArea.textContent += entry;
+  logArea.scrollTop = logArea.scrollHeight;
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Initialize UI elements
+  messageInput = document.getElementById('message-input');
+  sendBtn = document.getElementById('send-btn');
+  logArea = document.getElementById('log');
+
   try {
     // Get public IP and peers from background
     const response = await chrome.runtime.sendMessage({ type: 'getPeers' });
@@ -20,16 +72,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       const bestPeer = peers[0];
-      console.log(`Connecting to most recent peer: ${bestPeer.peerId} (Last seen: ${new Date(bestPeer.lastSeen).toLocaleTimeString()})`);
-      if (peers.length > 1) {
-        console.log(`(Skipped ${peers.length - 1} older/stale peers)`);
-      }
-
+      console.log(`Connection: Initiating with ${bestPeer.peerId}`);
+      currentTargetPeerId = bestPeer.peerId;
       await connectToPeer(bestPeer.peerId);
     } else {
-      document.getElementById('status').textContent = 'No peers found. Retrying...';
+      const statusEl = document.getElementById('status');
+      if (statusEl) statusEl.textContent = 'No peers found. Retrying...';
+      updateUIState(false);
       setTimeout(reconnect, 3000);
     }
+
+    // Set up send button listener
+    if (sendBtn) {
+      sendBtn.addEventListener('click', () => {
+        const msg = messageInput?.value?.trim();
+        if (msg && dataChannel && dataChannel.readyState === 'open') {
+          dataChannel.send(msg);
+          addToLog(msg, 'sent');
+          if (messageInput) messageInput.value = '';
+        }
+      });
+    }
+
+    // Also send on Enter key
+    if (messageInput) {
+      messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && sendBtn) {
+          sendBtn.click();
+        }
+      });
+    }
+
   } catch (error) {
     console.error('Failed to get peers:', error);
     document.getElementById('status').textContent = 'Failed to connect. Retrying...';
@@ -62,6 +135,7 @@ async function connectToPeer(peerId) {
         console.log('Sidebar: Connection state changed to:', state);
         if (state === 'failed' || state === 'disconnected' || state === 'closed') {
           document.getElementById('status').textContent = 'Connection lost. Reconnecting...';
+          updateUIState(false);
           // Wait a bit then reconnect
           setTimeout(reconnect, 3000);
         }
@@ -72,59 +146,49 @@ async function connectToPeer(peerId) {
     webrtcManager.initializePeerConnection();
 
     // Create data channel (this is synchronous now)
-    const dataChannel = webrtcManager.createDataChannel('vibration-control');
+    dataChannel = webrtcManager.createDataChannel('vibration-control');
 
     // Set up data channel handlers
     dataChannel.onmessage = (event) => {
-      console.log('Vibration command received:', event.data);
-      // Handle vibration commands here
+      console.log('Message received:', event.data);
+      // Log string messages
+      addToLog(event.data, 'received');
+
+      // Keep existing vibration logic if it was JSON (though it wasn't implemented)
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Vibration command received:', data);
+      } catch (e) {
+        // Not JSON, just a string message
+      }
     };
 
     dataChannel.onopen = () => {
       console.log('Data channel opened - connection established!');
       document.getElementById('status').textContent = `Connected to ${peerId}`;
+      updateUIState(true);
     };
 
     dataChannel.onerror = (error) => {
       console.error('Data channel error:', error);
-      throw new Error('Data channel error: ' + error);
-    };
-
-    dataChannel.onclose = () => {
-      console.log('Data channel closed');
-      document.getElementById('status').textContent = 'Connection lost. Retrying...';
+      document.getElementById('status').textContent = 'Data channel error. Reconnecting...';
+      updateUIState(false);
       setTimeout(reconnect, 3000);
     };
 
-    // Set up answer handler first to avoid race condition
-    const messageHandler = (message) => {
-      if (message.type === 'answerReceived') {
-        console.log('Answer received via background');
-        webrtcManager.handleAnswer(message.answer).then(() => {
-          console.log('Answer processed successfully');
-          document.getElementById('status').textContent = 'Negotiating connection...';
-        }).catch((error) => {
-          console.error('Failed to handle answer:', error);
-          document.getElementById('status').textContent = 'Connection failed. Retrying...';
-          setTimeout(reconnect, 3000);
-        });
-      } else if (message.type === 'iceCandidateReceived') {
-        console.log('ICE candidate received via background');
-        webrtcManager.handleIceCandidate(message.candidate).catch((error) => {
-          console.error('Failed to handle ICE candidate:', error);
-        });
-      }
+    dataChannel.onclose = () => {
+      console.log('Data Channel: Closed');
+      const statusEl = document.getElementById('status');
+      if (statusEl) statusEl.textContent = 'Connection lost. Retrying...';
+      updateUIState(false);
+      setTimeout(reconnect, 3000);
     };
 
-    // Remove any existing listeners to prevent duplicates if reconnecting
-    chrome.runtime.onMessage.removeListener(messageHandler);
-    chrome.runtime.onMessage.addListener(messageHandler);
-
     // Create and send offer
-    console.log('Creating offer...');
+    console.log('Handshake: Creating offer...');
     const offer = await webrtcManager.createOffer();
 
-    console.log('Sending offer to background...');
+    console.log('Handshake: Sending offer to background...');
     const response = await chrome.runtime.sendMessage({
       type: 'sendOffer',
       offer,
@@ -133,8 +197,9 @@ async function connectToPeer(peerId) {
 
     if (response && response.sessionId) {
       currentSessionId = response.sessionId;
-      console.log(`Offer sent, session ID: ${currentSessionId}`);
-      document.getElementById('status').textContent = `Waiting for ${peerId} to accept...`;
+      console.log(`Handshake: Offer sent, Session ID: ${currentSessionId}`);
+      const statusEl = document.getElementById('status');
+      if (statusEl) statusEl.textContent = `Waiting for ${peerId}...`;
     } else {
       throw new Error('Failed to send offer - no session ID received');
     }
@@ -142,6 +207,7 @@ async function connectToPeer(peerId) {
   } catch (error) {
     console.error('Connection failed:', error);
     document.getElementById('status').textContent = 'Connection failed. Retrying...';
+    updateUIState(false);
     setTimeout(reconnect, 5000);
   }
 }
