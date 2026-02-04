@@ -26,11 +26,15 @@ Screen readers often force linear navigation. TOMAT Light offers a **spatial, to
 
 ### 🛠️ Assistive UX Highlights
 
-* **Haptic states**:
-
-  * `INACTIVE`: No feedback
-  * `ACTIVE`: Continuous vibration
-  * `PULSATING`: Rhythmic pulses
+* **UI Grid**: 
+  * Four horizontal element rows (4 data buttons + 1 Enter button each).
+  * Dedicated navigation row at the bottom (`*`, `+`, `-`, `/\`, `\/`, `>`).
+* **Haptic Feedback**:
+  * **Interactive Pulse**: Instant 50ms vibration on every button press (`touchstart`/`mousedown`).
+  * **Haptic states**:
+    * `INACTIVE`: No feedback
+    * `ACTIVE`: Continuous vibration
+    * `PULSATING`: Rhythmic pulses
 * **Multi-touch detection** with adaptive feedback
 * **Real-time updates**: Remote apps can change button states live
 * **Low-vision friendly**: Non-visual interaction model with audio/tactile cues

@@ -6,7 +6,7 @@
 class VibrationPWA {
     constructor() {
         // Get DOM elements
-        this.vibrateBtn = document.getElementById('vibrateBtn');
+        this.tomatUI = document.getElementById('tomatUI');
         this.status = document.getElementById('status');
         this.debugInfo = document.getElementById('debugInfo');
         this.installPrompt = document.getElementById('installPrompt');
@@ -43,7 +43,7 @@ class VibrationPWA {
     initializeApp() {
         // Initialize component managers
         this.vibrationHandler = new VibrationHandler(
-            this.vibrateBtn,
+            this.tomatUI, // Replaces vibrateBtn
             this.status,
             this.debugInfo
         );

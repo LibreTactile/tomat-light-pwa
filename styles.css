@@ -12,11 +12,10 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
-    min-height: 100vh;
+    height: 100vh;
+    width: 100vw;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     overflow: hidden;
     position: relative;
     touch-action: none;
@@ -24,89 +23,170 @@ body {
 
 /* Main Container */
 .container {
-    text-align: center;
-    padding: 2rem;
+    padding: 0.2rem;
     z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    /* Stretch children to fill width */
+}
+
+.header-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 0.5rem;
 }
 
 /* Typography */
 .title {
     color: #e94560;
-    font-size: 2.5rem;
+    font-size: 8pt;
     font-weight: 700;
-    margin-bottom: 1rem;
-    text-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
-    animation: glow 2s ease-in-out infinite alternate;
+    margin-bottom: 0;
+    text-shadow: 0 0 10px rgba(233, 69, 96, 0.3);
+    white-space: nowrap;
 }
 
+/* Subtitle Hidden as per request */
 .subtitle {
-    color: #a8a8a8;
-    font-size: 1.1rem;
-    margin-bottom: 3rem;
-    opacity: 0.8;
+    display: none;
 }
 
-/* Main Vibrate Button */
-.vibrate-button {
-    width: 200px;
-    height: 200px;
-    border: none;
-    border-radius: 50%;
-    background: linear-gradient(145deg, #e94560, #c73650);
-    color: white;
-    font-size: 1.2rem;
-    font-weight: 600;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow:
-        0 10px 30px rgba(233, 69, 96, 0.3),
-        inset 0 2px 10px rgba(255, 255, 255, 0.1);
-}
-
-.vibrate-button:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
+/* TOMAT UI Layout */
+.tomat-ui {
     width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-    transition: left 0.5s;
-}
-
-.vibrate-button.hover:before {
-    left: 100%;
-}
-
-.vibrate-button.hover {
-    transform: scale(1.05);
-    box-shadow:
-        0 15px 40px rgba(233, 69, 96, 0.4),
-        inset 0 2px 10px rgba(255, 255, 255, 0.2);
-}
-
-.vibrate-button.active {
-    transform: scale(0.95);
-    background: linear-gradient(145deg, #c73650, #a82d42);
-    box-shadow:
-        0 5px 20px rgba(233, 69, 96, 0.5),
-        inset 0 5px 15px rgba(0, 0, 0, 0.2);
-}
-
-.button-text {
-    position: relative;
-    z-index: 2;
+    flex: 1;
+    /* Take remaining vertical space */
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
 }
 
-.button-icon {
-    font-size: 3rem;
-    animation: pulse 2s infinite;
+/* Rows Container */
+.element-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    flex: 1;
+    /* Fill vertical space */
+}
+
+/* Row Styling */
+.ui-row {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    flex: 1;
+    /* Each row takes equal vertical space */
+    gap: 10px;
+}
+
+/* Separators minimized to save space */
+.h-separator,
+.h-separator-small,
+.v-separator {
+    display: none;
+}
+
+.v-separator-large {
+    width: 30px;
+    background: transparent;
+}
+
+/* Buttons */
+.h-btn,
+.enter-btn,
+.nav-btn,
+.quit-btn {
+    background: linear-gradient(145deg, #2a2a40, #161625);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-family: monospace;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    /* Critical for custom touch handling */
+}
+
+.h-btn {
+    flex: 1;
+    font-size: 1.5rem;
+}
+
+.enter-btn {
+    width: 50px;
+    height: 70%;
+    align-self: center;
+    font-size: 1.5rem;
+    color: #ffd700;
+}
+
+.nav-buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    height: 50px;
+    /* Fixed height for nav buttons to keep them consistent */
+    margin-top: 40px;
+    margin-bottom: 10px;
+}
+
+.nav-btn {
+    flex: 1;
+    font-size: 1.2rem;
+    background: linear-gradient(145deg, #1f4037, #10201b);
+    border-color: rgba(100, 255, 218, 0.2);
+}
+
+.quit-btn {
+    display: none;
+}
+
+/* Active/Hover States */
+.h-btn:active,
+.h-btn.active,
+.enter-btn:active,
+.enter-btn.active,
+.nav-btn:active,
+.nav-btn.active,
+.quit-btn:active,
+.quit-btn.active {
+    transform: scale(0.95);
+    filter: brightness(1.2);
+}
+
+.h-btn.active {
+    background: linear-gradient(145deg, #e94560, #c73650);
+    box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
+    color: white;
+}
+
+.enter-btn.active {
+    background: linear-gradient(145deg, #ffd700, #b89b00);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+    color: #1a1a2e;
+    /* Dark text for contrast against yellow/gold */
+}
+
+.nav-btn.active {
+    background: linear-gradient(145deg, #00b09b, #96c93d);
+    box-shadow: 0 0 15px rgba(0, 176, 155, 0.4);
+    color: #fff;
 }
 
 /* Status Display */
@@ -138,10 +218,13 @@ body {
     transition: opacity 0.3s ease;
     z-index: 1000;
     max-width: 200px;
+    pointer-events: none;
+    /* Prevent blocking clicks when hidden */
 }
 
 .debug-info.show {
     opacity: 1;
+    pointer-events: auto;
 }
 
 /* Install Prompt */
@@ -161,11 +244,14 @@ body {
     opacity: 0;
     transition: all 0.3s ease;
     z-index: 1000;
+    pointer-events: none;
+    /* Prevent blocking clicks when hidden */
 }
 
 .install-prompt.show {
     transform: translateY(0);
     opacity: 1;
+    pointer-events: auto;
 }
 
 .install-button {
@@ -209,10 +295,13 @@ body {
     opacity: 0;
     transition: opacity 0.3s ease;
     z-index: 1000;
+    pointer-events: none;
+    /* Prevent blocking clicks when hidden */
 }
 
 .service-worker-status.show {
     opacity: 1;
+    pointer-events: auto;
 }
 
 /* Background Animation */
@@ -286,13 +375,15 @@ body {
 
 /* WebRTC Connection Status Styling */
 .connection-status {
-    margin-bottom: 2rem;
-    padding: 0.75rem 1rem;
+    padding: 2px 6px;
     background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    display: inline-block;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     transition: all 0.3s ease;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 8pt;
 }
 
 .connection-status.connected {
@@ -301,16 +392,15 @@ body {
 }
 
 .status-main {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
+    display: contents;
+    /* Let children participate in parent flex */
 }
 
 .status-text {
     color: #a8a8a8;
-    font-size: 0.9rem;
+    font-size: 8pt;
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .connection-status.connected .status-text {
@@ -318,37 +408,24 @@ body {
 }
 
 .status-details {
-    margin-top: 0.4rem;
-    font-size: 0.7rem;
+    margin-top: 0;
+    font-size: 7pt;
     color: #666;
     display: flex;
-    gap: 0.8rem;
-    justify-content: center;
+    gap: 4px;
+    align-items: center;
     font-family: monospace;
 }
 
 .status-details span {
     background: rgba(0, 0, 0, 0.2);
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 0px 4px;
+    border-radius: 2px;
 }
 
 /* Message Log */
 .message-log {
-    margin-top: 2rem;
-    padding: 0.8rem 1.2rem;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
-    font-size: 0.95rem;
-    min-height: 3.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(255, 255, 255, 0.5);
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    font-family: 'Segoe UI', Roboto, sans-serif;
-    text-align: center;
+    display: none;
 }
 
 .message-log.new-message {
@@ -362,8 +439,12 @@ body {
 
 /* Responsive Design */
 @media (max-width: 480px) {
+    .container {
+        padding: 0.2rem;
+    }
+
     .title {
-        font-size: 2rem;
+        font-size: 8pt;
     }
 
     .vibrate-button {
