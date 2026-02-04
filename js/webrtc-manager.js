@@ -121,7 +121,11 @@ class WebRTCManager {
                 const iceState = this.peerConnection.iceConnectionState;
                 Utils.log(`WebRTC: ICE connection state: ${iceState}`);
                 if (iceState === 'failed' || iceState === 'disconnected') {
-                    Utils.log('WebRTC: ICE connection lost');
+                    Utils.log('WebRTC: ICE connection lost, attempting to reconnect...');
+                    this.setSignalingState('reconnecting');
+                    setTimeout(() => {
+                        this.restart();
+                    }, 3000);
                 }
             };
 
@@ -172,13 +176,30 @@ class WebRTCManager {
     }
 
     async handleOffer(offer, sessionId) {
-        if (this.isProcessingOffer || (this.sessionId === sessionId && this.peerConnection)) {
-            Utils.log(`WebRTC: Ignoring redundant offer for session ${sessionId}`);
+        if (this.isProcessingOffer) {
+            Utils.log(`WebRTC: Refusing offer for ${sessionId} - already processing ${this.sessionId}`);
+            return;
+        }
+
+        // Lock immediately before any async work or cleanup
+        this.isProcessingOffer = true;
+
+        if (this.sessionId === sessionId && this.isConnected) {
+            Utils.log(`WebRTC: Ignoring redundant offer for already connected session ${sessionId}`);
+            this.isProcessingOffer = false;
             return;
         }
 
         try {
-            this.isProcessingOffer = true;
+            // If we have an existing connection for a different session, clean it up first
+            if (this.sessionId && this.sessionId !== sessionId) {
+                Utils.log(`WebRTC: Session mismatch (New: ${sessionId}, Old: ${this.sessionId}), cleaning up old connection`);
+                this.cleanup();
+                // Ensure we reset state after cleanup but keep the lock
+                this.isProcessingOffer = true;
+                this.sessionId = sessionId;
+            }
+
             this.setSignalingState('received_offer');
             this.sessionId = sessionId;
 

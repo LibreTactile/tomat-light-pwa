@@ -251,8 +251,8 @@ class SignalingManager {
             if (!this.db) return [];
             // Find peers with same public IP but different role
             const targetRole = this.role === 'interface' ? 'navigator' : 'interface';
-            // Cutoff: 22 seconds ago
-            const cutoffTime = new Date(Date.now() - 22000);
+            // Cutoff: 60 seconds ago (more lenient for clock skew)
+            const cutoffTime = new Date(Date.now() - 60000);
 
             const snapshot = await this.db
                 .collection('peers')
@@ -261,6 +261,8 @@ class SignalingManager {
                 .where('status', '==', 'available')
                 .where('lastSeen', '>', cutoffTime)
                 .get();
+
+            Utils.log(`Signaling: Querying peers with IP: ${this.publicIP}, Role: ${targetRole}, Cutoff: ${cutoffTime.toISOString()}`);
             const peers = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
