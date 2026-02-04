@@ -189,6 +189,47 @@ body {
     color: #fff;
 }
 
+/* Button State Styling */
+/* State classes for button feedback based on navigator state */
+.h-btn.state-inactive,
+.enter-btn.state-inactive,
+.nav-btn.state-inactive {
+    box-shadow: 0 0 8px rgba(128, 128, 128, 0.3);
+    border-color: rgba(128, 128, 128, 0.2);
+}
+
+.h-btn.state-active,
+.enter-btn.state-active,
+.nav-btn.state-active {
+    background: linear-gradient(145deg, #00b09b, #008f7f);
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+    border-color: rgba(0, 255, 0, 0.3);
+    color: #fff;
+}
+
+.h-btn.state-pulsating,
+.enter-btn.state-pulsating,
+.nav-btn.state-pulsating {
+    background: linear-gradient(145deg, #e94560, #c73650);
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+    border-color: rgba(255, 0, 0, 0.3);
+    color: #fff;
+    animation: pulse-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(255, 0, 0, 0.7);
+    }
+}
+
+
 /* Status Display */
 .status {
     margin-top: 2rem;

@@ -54,7 +54,7 @@ class VibrationPWA {
             this.swStatus
         );
 
-        // Initialize Navi IO Manager
+        // Initialize Navi IO Manager (will be connected to vibrationHandler below)
         this.naviIO = new TomatNaviIO(this.webrtcManager);
 
         // Initialize component managers
@@ -62,7 +62,8 @@ class VibrationPWA {
             this.tomatUI, // Replaces vibrateBtn
             this.status,
             this.debugInfo,
-            (input, state, row) => this.naviIO.handleButtonInteraction(input, state, row)
+            (input, state, row) => this.naviIO.handleButtonInteraction(input, state, row),
+            this.naviIO  // Pass naviIO for state checking
         );
 
         // Setup additional event listeners
@@ -160,28 +161,56 @@ class VibrationPWA {
     onDataReceived(data) {
         Utils.log('Received data from peer:', data);
 
-        // Handle string messages
-        if (typeof data === 'string' || data.message) {
-            const msg = typeof data === 'string' ? data : data.message;
-            this.logMessage(msg);
+        // If data is a string, try to parse it as JSON first
+        let parsedData = data;
+        if (typeof data === 'string') {
+            try {
+                parsedData = JSON.parse(data);
+                Utils.log('Parsed JSON string:', parsedData);
+            } catch (e) {
+                // Not valid JSON, treat as plain string message
+                this.logMessage(data);
+                this.sendToPeer({
+                    type: 'echo',
+                    message: `Echo: ${data}`,
+                    timestamp: Date.now()
+                });
+                return;
+            }
+        }
 
-            // Echo back to peer
+        // Check if this is a state update (has 'rows' property)
+        if (parsedData.rows && this.naviIO) {
+            this.naviIO.handleStateUpdate(parsedData);
+            return;
+        }
+
+        // Handle message property
+        if (parsedData.message) {
+            this.logMessage(parsedData.message);
             this.sendToPeer({
                 type: 'echo',
-                message: `Echo: ${msg}`,
+                message: `Echo: ${parsedData.message}`,
                 timestamp: Date.now()
             });
         }
 
         // Handle different types of incoming data
-        switch (data.type) {
+        switch (parsedData.type) {
             case 'control':
-                // Handle control commands
-                this.handleControlCommand(data);
+                this.handleControlCommand(parsedData);
+                break;
+
+            case 'state_update':
+                if (this.naviIO && parsedData.rows) {
+                    this.naviIO.handleStateUpdate(parsedData);
+                }
                 break;
 
             default:
-                Utils.log('Unknown data type received:', data.type);
+                if (parsedData.type) {
+                    Utils.log('Unknown data type received:', parsedData.type);
+                }
         }
     }
 

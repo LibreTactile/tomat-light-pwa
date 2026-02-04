@@ -3,15 +3,17 @@
  */
 
 class VibrationHandler {
-    constructor(buttonElement, statusElement, debugElement, onButtonInteraction) {
+    constructor(buttonElement, statusElement, debugElement, onButtonInteraction, naviIO = null) {
         this.vibrateBtn = buttonElement;
         this.status = statusElement;
         this.debugInfo = debugElement;
         this.onButtonInteraction = onButtonInteraction || null;
+        this.naviIO = naviIO || null;
 
         // Touch tracking system
         this.activeTouches = new Map(); // Maps touch identifier to touch state
         this.isVibrating = false;
+        this.currentVibrationType = null;
         this.vibrationInterval = null;
         this.debugMode = false;
 
@@ -115,26 +117,19 @@ class VibrationHandler {
         // Remove ended touches
         for (let touch of e.changedTouches) {
             const touchState = this.activeTouches.get(touch.identifier);
-            if (touchState && touchState.target) {
-                this.onTouchExitButton(touchState.target);
-            }
-            this.activeTouches.delete(touch.identifier);
-        }
-
-        // Stop vibration if no active haptic touches remain
-        const hasActiveHaptic = Array.from(this.activeTouches.values())
-            .some(t => t.target !== null);
-
-        if (!hasActiveHaptic) {
-            this.stopVibration();
-
-            // Explicitly stop hardware vibration
-            if (navigator.vibrate) {
-                navigator.vibrate(0);
-                navigator.vibrate([]);
+            if (touchState) {
+                if (touchState.target) {
+                    const target = touchState.target;
+                    // Important: clear the target in state BEFORE calling exit logic
+                    // so updateHapticState sees the correct current state
+                    touchState.target = null;
+                    this.onTouchExitButton(target);
+                }
+                this.activeTouches.delete(touch.identifier);
             }
         }
 
+        // updateHapticState is already called inside onTouchExitButton
         this.updateDebugInfo();
     }
 
@@ -191,12 +186,12 @@ class VibrationHandler {
 
         const touchState = this.activeTouches.get('mouse');
         if (touchState.target) {
-            this.onTouchExitButton(touchState.target);
+            const target = touchState.target;
+            touchState.target = null;
+            this.onTouchExitButton(target);
         }
 
-        this.stopVibration();
         this.activeTouches.delete('mouse');
-
         this.updateDebugInfo();
     }
 
@@ -210,18 +205,23 @@ class VibrationHandler {
     }
 
     onTouchEnterButton(target) {
-        // Pulse for button entry
-        this.pulseVibration();
-
         if (target) {
             target.classList.add('active', 'hover');
 
+            // Get button info
+            const input = target.getAttribute('data-input');
+            const row = target.parentElement.getAttribute('data-row');
+
+            // Trigger immediate pulse for any button entry (tactile feedback)
+            this.pulseVibration();
+
             // Send interaction event if callback exists
             if (this.onButtonInteraction) {
-                const input = target.getAttribute('data-input');
-                const row = target.parentElement.getAttribute('data-row');
                 this.onButtonInteraction(input, 'down', row);
             }
+
+            // Re-evaluate global haptic state for persistent patterns
+            this.updateHapticState();
         }
         this.createWaveEffect();
     }
@@ -230,26 +230,101 @@ class VibrationHandler {
         if (target) {
             target.classList.remove('active', 'hover');
 
+            const input = target.getAttribute('data-input');
+            const row = target.parentElement.getAttribute('data-row');
+
             // Send interaction event if callback exists
             if (this.onButtonInteraction) {
-                const input = target.getAttribute('data-input');
-                const row = target.parentElement.getAttribute('data-row');
                 this.onButtonInteraction(input, 'up', row);
+            }
+
+            // Re-evaluate global haptic state
+            this.updateHapticState();
+        }
+    }
+
+    updateHapticState() {
+        let highestState = null;
+
+        // Iterate through all active touches to find the highest priority vibration state
+        for (const touch of this.activeTouches.values()) {
+            if (!touch.target) continue;
+
+            const input = touch.target.getAttribute('data-input');
+            const row = touch.target.parentElement.getAttribute('data-row');
+
+            // Only h1-h4 buttons have persistent states
+            if (this.naviIO && row && ['h1', 'h2', 'h3', 'h4'].includes(input)) {
+                const buttonIndex = ['h1', 'h2', 'h3', 'h4'].indexOf(input);
+                const buttonState = this.naviIO.getButtonState(parseInt(row), buttonIndex);
+
+                if (buttonState === 'PULSATING') {
+                    highestState = 'PULSATING';
+                    break; // Pulsating has highest priority
+                } else if (buttonState === 'ACTIVE' && highestState !== 'PULSATING') {
+                    highestState = 'ACTIVE';
+                }
+            }
+        }
+
+        // Apply vibration based on highest state found
+        if (highestState === 'PULSATING') {
+            this.startPulsatingVibration();
+        } else if (highestState === 'ACTIVE') {
+            this.startContinuousVibration();
+        } else {
+            // Only stop if we were actually doing a persistent vibration
+            // This prevents killing the 50ms tactile pulse for INACTIVE/nav buttons
+            if (this.currentVibrationType !== null) {
+                this.stopVibration();
+                if (navigator.vibrate) {
+                    navigator.vibrate(0);
+                }
             }
         }
     }
 
     pulseVibration() {
-        this.isVibrating = true;
-        // Pulse vibration for tactile feedback
+        // Short pulse for immediate feedback, doesn't interfere with intervals
         if (navigator.vibrate) {
-            navigator.vibrate(50); // 50ms pulse as per spec
+            navigator.vibrate(50);
         }
+    }
 
-        // Reset state after a short delay
-        setTimeout(() => {
-            this.isVibrating = false;
-        }, 50);
+    startContinuousVibration() {
+        if (this.currentVibrationType === 'ACTIVE') return;
+
+        this.stopVibration();
+        this.currentVibrationType = 'ACTIVE';
+        this.isVibrating = true;
+
+        const runVibration = () => {
+            if (navigator.vibrate) {
+                // Short bursts every half second to keep it "constant" but bypass OS limits
+                navigator.vibrate(400);
+            }
+        };
+
+        runVibration();
+        this.vibrationInterval = setInterval(runVibration, 500);
+    }
+
+    startPulsatingVibration() {
+        if (this.currentVibrationType === 'PULSATING') return;
+
+        this.stopVibration();
+        this.currentVibrationType = 'PULSATING';
+        this.isVibrating = true;
+
+        const runVibration = () => {
+            if (navigator.vibrate) {
+                // Rhythmic pattern: [on, off, on, off]
+                navigator.vibrate([100, 100, 100, 300]);
+            }
+        };
+
+        runVibration();
+        this.vibrationInterval = setInterval(runVibration, 600);
     }
 
     startVibration() {
@@ -259,12 +334,11 @@ class VibrationHandler {
 
     stopVibration() {
         this.isVibrating = false;
+        this.currentVibrationType = null;
         if (this.vibrationInterval) {
             clearInterval(this.vibrationInterval);
             this.vibrationInterval = null;
         }
-        // We don't necessarily stop navigator.vibrate(0) here because we want the pulse to finish naturally
-        // unless it's a long vibration.
     }
 
     stopAllVibration() {

@@ -105,19 +105,20 @@ flowchart TD
 {
   "rows": [
     {
-      "row": 0,
+      "row": 1,
       "state": "ACTIVE" 
     },
     {
-      "row": 1,
+      "row": 2,
       "buttons": [
-        {"id": 0, "state": "PULSATING"},
-        {"id": 1, "state": "ACTIVE"}
+        {"id": 3, "state": "PULSATING"},
+        {"id": 4, "state": "ACTIVE"}
       ]
     }
   ]
 }
 ```
+*Note: Row indices (1-4) and Button IDs (1-4) are both 1-based.*
 
 The TOMAT UI is constructed using CSS Flexbox to ensure vertical stacking matches the hardware layout. It consists of a grid of buttons organized into functional rows:
 
@@ -156,58 +157,40 @@ The UI uses a dark theme with responsive button sizing:
 
 ```css
 /* Core button styles */
-.row-button {
-  flex: 1;
-  background: #4a4a4a;
-  border: 1px solid #666;
-  border-radius: 4px;
-  color: white;
-  font-size: 36px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.h-btn, .enter-btn, .nav-btn {
+    background: linear-gradient(145deg, #2a2a40, #161625);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    transition: all 0.1s;
 }
 
 /* State-specific styling */
-.row-button.inactive {
-  background: #4a4a4a;
+.h-btn.state-inactive {
+    box-shadow: 0 0 8px rgba(128, 128, 128, 0.3);
 }
 
-.row-button.active {
-  background: #00cc00;
+.h-btn.state-active {
+    background: linear-gradient(145deg, #00b09b, #008f7f);
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+    color: #fff;
 }
 
-.row-button.pulsating {
-  background: #cc0000;
-  animation: pulse 1s infinite;
+.h-btn.state-pulsating {
+    background: linear-gradient(145deg, #e94560, #c73650);
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+    color: #fff;
+    animation: pulse-glow 1.2s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 15px rgba(255, 0, 0, 0.4); }
+    50% { box-shadow: 0 0 25px rgba(255, 0, 0, 0.7); }
 }
 
-/* Special button types */
-.enter-button {
-  background: #0066cc;
-  border-color: #0077dd;
-}
-
-.nav-button {
-  flex: 1;
-  height: 80px;
-  font-size: 48px;
-}
-
-.nav-button.star {
-  background: #cc6600;
-  border-color: #dd7700;
-}
-
-.quit-button {
-  background: #cc0000;
-  border-color: #dd0000;
-  font-size: 28px;
+/* Interactive (Touch) feedback */
+.h-btn.active {
+    transform: scale(0.95);
+    background: linear-gradient(145deg, #e94560, #c73650);
 }
 
 /* Interactive states */
@@ -249,21 +232,28 @@ To ensure robust tactile feedback on mobile devices, the application bypasses st
    ```javascript
    class VibrationHandler {
      constructor() {
-       this.activeTouch = null;
-       this.isTouchDevice = false;
-       this.buttons = new Map();
+       this.activeTouches = new Map(); // identifier -> {target, x, y}
+       this.naviIO = null; // Provides persistent button states
      }
      
-     updateTouchPosition(x, y) {
-       // Manual hit detection against button boundaries
-       for (const [button, bounds] of this.buttons) {
-         const isInside = Utils.isPointInsideCircle(x, y, bounds);
-         if (isInside && !button.isTouched) {
-           this.triggerEnter(button);
-         } else if (!isInside && button.isTouched) {
-           this.triggerExit(button);
+     handleTouchMove(e) {
+       for (let touch of e.changedTouches) {
+         const newTarget = this.getHapticTarget(touch.clientX, touch.clientY);
+         const touchState = this.activeTouches.get(touch.identifier);
+         
+         if (newTarget !== touchState.target) {
+           this.onTouchExit(touchState.target);
+           this.onTouchEnter(newTarget);
+           touchState.target = newTarget;
          }
        }
+     }
+
+     updateHapticState() {
+       // Highest Priority: PULSATING > ACTIVE > tactile pulse
+       let highest = this.findHighestPriorityActiveTouchState();
+       if (highest === 'PULSATING') this.startPulsating();
+       else if (highest === 'ACTIVE') this.startContinuous();
      }
    }
    ```
@@ -320,31 +310,42 @@ function updateButtonState(buttonElement, state) {
 }
 ```
 
+JSON format received from Navigator Extension:
+```json
+{ "rows": [{ "row": 1, "state": "PULSATING" }] }
+```
+
+```json
+{ "rows": [{ "row": 2, "buttons": [{ "id": 3, "state": "ACTIVE" }] }] }
+```
+
+```json
+{"rows":[{"row":1,"buttons":[{"id":4,"state":"ACTIVE"}]},{"row":2,"buttons":[{"id":1,"state":"PULSATING"},{"id":2,"state":"ACTIVE"}]},{"row":3,"buttons":[{"id":3,"state":"ACTIVE"}]},{"row":4,"state":"INACTIVE"}]}
+```
+
 ### **4. Haptic Feedback System**
 
 Replaces Godot's vibration system with the Web Vibration API.
 
 **Vibration Patterns:**
 ```javascript
-// ACTIVE: Continuous vibration
-function activeVibration() {
-  // Create 2-second continuous pattern: 50ms on, 50ms off
-  const pattern = [];
-  for (let i = 0; i < 20; i++) {
-    pattern.push(50, 50);
-  }
-  navigator.vibrate(pattern);
+// ACTIVE: Continuous vibration (400ms bursts to bypass OS limits)
+function startContinuousVibration() {
+  this.vibrationInterval = setInterval(() => {
+    navigator.vibrate(400);
+  }, 500);
 }
 
-// PULSATING: Rhythmic pulses  
-function pulsatingVibration() {
-  // Heartbeat pattern: 200ms on, 100ms off
-  navigator.vibrate([200, 100, 200, 100, 200, 100, 200]);
+// PULSATING: Rhythmic pattern heartbeat
+function startPulsatingVibration() {
+  this.vibrationInterval = setInterval(() => {
+    navigator.vibrate([100, 100, 100, 300]);
+  }, 600);
 }
 
-// Stop all vibration
-function stopVibration() {
-  navigator.vibrate(0);
+// INTERACTION: Short tactile pulse
+function pulse() {
+  navigator.vibrate(50);
 }
 ```
 
