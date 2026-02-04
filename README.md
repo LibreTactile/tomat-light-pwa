@@ -61,7 +61,7 @@ Screen readers often force linear navigation. TOMAT Light offers a **spatial, to
 | `v0.0.2` | WebRTC comm (data)                                                                                                                                  |
 | `v0.0.3` | Button grid                                                                                                                                       |
 | `v0.0.4` | Vibration from received model                                                                                                                              |
-| `v0.0.5`   | Connection to TOMAT-Navi extension (WEBRTC branch) |
+| `v0.1` | Connection to TOMAT-Navi extension ([WEBRTC branch](https://github.com/LibreTactile/tomat-navi-prototype/tree/com/webrtc)) |
 
 
 ---
