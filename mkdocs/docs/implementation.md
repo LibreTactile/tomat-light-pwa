@@ -119,44 +119,33 @@ flowchart TD
 }
 ```
 
-### **3. Button System Implementation**
+The TOMAT UI is constructed using CSS Flexbox to ensure vertical stacking matches the hardware layout. It consists of a grid of buttons organized into functional rows:
 
-#### **HTML Structure**
-
-The TOMAT UI consists of a grid of buttons organized into rows with navigation controls:
+- **Four Element Rows**: Implemented as four distinct horizontal rows. Each row contains 4 data buttons and 1 larger "Input/Enter" (↵) button.
+- **Navigation Row**: A dedicated row at the bottom for control keys (`*`, `+`, `-`, `/\`, `\/`, `>`).
 
 ```html
-<div class="scene">
-  <div class="tomat-ui">
-    <!-- Main button grid (4 rows) -->
-    <div class="element-rows">
-      <!-- Each row contains 4 content buttons + enter button -->
-      <div class="element-row">
-        <button class="row-button" onclick="handleRowButton('h1')">h1</button>
-        <div class="row-separator"></div>
-        <button class="row-button" onclick="handleRowButton('h2')">h2</button>
-        <div class="row-separator"></div>
-        <button class="row-button" onclick="handleRowButton('h3')">h3</button>
-        <div class="row-separator"></div>
-        <button class="row-button" onclick="handleRowButton('h4')">h4</button>
-        <div class="row-separator" style="width: 16px;"></div>
-        <button class="row-button enter-button" onclick="handleInput('enter')">↵</button>
-      </div>
-      <!-- Repeat for 3 more rows -->
+<div class="tomat-ui">
+  <!-- Element Rows -->
+  <div class="element-rows">
+    <div class="ui-row">
+      <button class="h-btn" data-haptic="true">h1</button>
+      <button class="h-btn" data-haptic="true">h2</button>
+      <button class="h-btn" data-haptic="true">h3</button>
+      <button class="h-btn" data-haptic="true">h4</button>
+      <button class="enter-btn" data-haptic="true">↵</button>
     </div>
+    <!-- ... repeated for 4 rows ... -->
+  </div>
 
-    <!-- Navigation buttons -->
-    <div class="nav-buttons">
-      <button class="nav-button star" onclick="handleNavButton('F')">*</button>
-      <button class="nav-button" onclick="handleNavButton('P')">+</button>
-      <button class="nav-button" onclick="handleNavButton('M')">-</button>
-      <button class="nav-button" onclick="handleNavButton('U')">↑</button>
-      <button class="nav-button" onclick="handleNavButton('D')">↓</button>
-      <button class="nav-button" onclick="handleNavButton('N')">></button>
-    </div>
-
-    <!-- Quit button -->
-    <button class="quit-button" onclick="handleQuit()">Quit</button>
+  <!-- Navigation Buttons -->
+  <div class="nav-buttons">
+    <button class="nav-btn" data-input="F" data-haptic="true">*</button>
+    <button class="nav-btn" data-input="P" data-haptic="true">+</button>
+    <button class="nav-btn" data-input="M" data-haptic="true">-</button>
+    <button class="nav-btn" data-input="U" data-haptic="true">/\</button>
+    <button class="nav-btn" data-input="D" data-haptic="true">\/</button>
+    <button class="nav-btn" data-input="N" data-haptic="true">></button>
   </div>
 </div>
 ```
@@ -242,17 +231,21 @@ button:hover {
 
 #### **Advanced Input Handling**
 
-To ensure robust tactile feedback on mobile devices, the application bypasses standard "hover" events (which often fail during active touch sliding) and implements a **manual coordinate-tracking system**.
+To ensure robust tactile feedback on mobile devices, the application bypasses standard "hover" events and implements a **manual coordinate-tracking system**.
 
 **Key Implementation Details:**
 
 1. **Global Event Listeners**
-   - Attached at `document` level to track finger movement continuously
-   - `touchstart`: Captures initial contact and flags input as touch device
-   - `touchmove`: Core logic for detecting entry/exit via coordinate comparison
-   - `touchend`/`touchcancel`: Cleans up state and halts vibration
+   - Attached at `document` level to track finger movement continuously.
+   - `touchstart` / `mousedown`: Triggers instant haptic feedback (`vibrate(50)`).
+   - `touchmove`: Core logic for detecting entry/exit via coordinate comparison.
+   - `touchend`/`touchcancel`: Cleans up state and halts continuous vibration.
 
-2. **Coordinate Detection Logic**
+2. **Input Logic & Attributes**
+   - **Data Attributes**: Each button is assigned a `data-input` (or `data-key`) attribute matching internal `button_name` variables (e.g., "F", "P", "M", "U", "D", "N").
+   - **Vibration API**: Every button press triggers `window.navigator.vibrate(50)`, providing a short tactile pulse.
+
+3. **Coordinate Detection Logic**
    ```javascript
    class VibrationHandler {
      constructor() {

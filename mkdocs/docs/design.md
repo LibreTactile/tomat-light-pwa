@@ -13,6 +13,7 @@ TOMAT Light is a smartphone alternative to the **TOMAT hardware device** (a "rem
    - **Output**: Haptic feedback (vibration matrix).  
    - **Input**: Touchscreen buttons.  
 3. **Tactile feedback** emulating physical components:  
+   - **Haptic pulse**: Short 50ms pulse on every button press.
    - **Haptic states**:  
      - `INACTIVE`: Gray appearance, no feedback.  
      - `ACTIVE`: Green appearance, continuous vibration.  
@@ -85,25 +86,25 @@ The PWA receives JSON state updates via the WebRTC Data Channel. States can be a
 
 ### **4.3 Input Handling**
 
-#### **Touch Detection**
 To ensure reliable tactile feedback on mobile devices, the system uses **coordinate-based touch tracking** instead of standard hover events (which fail during touch sliding).
 
 **Approach:**
-- Global touch event listeners track finger position continuously
-- Manual boundary detection determines when touch enters/exits button areas
-- State transitions trigger vibration precisely at boundary crossings
+- Global touch event listeners track finger position continuously.
+- Manual boundary detection determines when touch enters/exits button areas.
+- **Instant Feedback**: Every button press triggers `window.navigator.vibrate(50)` on `touchstart` or `mousedown`.
+- **Button Attributes**: Each button is assigned a `data-input` attribute mapping to its functional role (e.g., "F", "P", "M", "U", "D", "N").
+- State transitions trigger vibration precisely at boundary crossings.
 
 **Event Flow:**
-- Touch enters button → Send "BxD*" event + Start vibration
+- Touch enters button → Send "BxD*" event + Start vibration + 50ms Pulse
 - Touch exits button → Send "BxU*" event + Stop vibration
 
-### **4.4 Haptic Feedback**
-
 Uses Web Vibration API (`navigator.vibrate()`):
-- **ACTIVE**: Continuous buzz pattern
-- **PULSATING**: Rhythmic heartbeat pattern
+- **Interaction Pulse**: `window.navigator.vibrate(50)` for instant tactile confirmation.
+- **ACTIVE**: Continuous buzz pattern.
+- **PULSATING**: Rhythmic heartbeat pattern.
 
-Vibration triggers are bound to coordinate-based boundary crossings for precise tactile feedback.
+Vibration triggers are bound to coordinate-based boundary crossings and instant touch events for precise tactile feedback.
 
 ### **4.5 Signaling & Discovery**
 
@@ -122,9 +123,12 @@ Vibration triggers are bound to coordinate-based boundary crossings for precise 
   - Sends button events to Navigator
 
 ### **Interface Manager**
-- **Vibrator Array**: Applies haptic feedback based on received state
-- **Button Grid**: Sends press/release events via coordinate tracking
-- **Quit Button**: Exits app and closes connections
+- **UI Grid**: 
+  - **Four Element Rows**: Four horizontal rows, each with 4 data buttons and 1 larger "Input/Enter" (↵) button.
+  - **Navigation Row**: Dedicated row at the bottom for control keys (`*`, `+`, `-`, `/\`, `\/`, `>`).
+- **Vibrator Array**: Applies haptic feedback based on received state (ACTIVE/PULSATING) plus tactile pulses on interaction.
+- **Button Grid**: Sends press/release events via coordinate tracking.
+- **Quit Button**: Exits app and closes connections.
 
 ## **6. Key Design Features**
 
