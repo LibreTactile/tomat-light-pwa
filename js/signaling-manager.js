@@ -12,9 +12,8 @@ class SignalingManager {
         this.unsubscribeCallbacks = [];
 
         // Callbacks for WebRTC events
-        this.onOfferReceived = null;
-        this.onAnswerReceived = null;
         this.onIceCandidateReceived = null;
+        this.startTime = new Date();
 
         this.firebaseConfig = {
             apiKey: "AIzaSyBknXnuNOHOugfrHIhzVOmJFL1BoxiU0W0",
@@ -126,19 +125,43 @@ class SignalingManager {
             .where('targetPeer', '==', this.peerId)
             .where('type', '==', 'offer')
             .onSnapshot((snapshot) => {
+                // Collect all valid added offers in this snapshot
+                const addedOffers = [];
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         const data = change.doc.data();
-                        Utils.log(`Signaling: Received offer (Session: ${change.doc.id})`);
 
-                        if (this.onOfferReceived) {
-                            this.onOfferReceived(data.offer, change.doc.id);
+                        // Ignore truly stale offers (older than 10 minutes before app start)
+                        const gracePeriod = 10 * 60 * 1000;
+                        const offerTime = data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+
+                        if (offerTime >= (this.startTime - gracePeriod)) {
+                            addedOffers.push({ id: change.doc.id, data, time: offerTime });
+                        } else {
+                            Utils.log(`Signaling: Ignoring ancient offer (Session: ${change.doc.id}, Age: ${Math.round((this.startTime - offerTime) / 1000)}s)`);
                         }
-
-                        // Listen for ICE candidates for this session
-                        this.listenForIceCandidates(change.doc.id);
                     }
                 });
+
+                // If we have offers in this batch, only process the latest one
+                if (addedOffers.length > 0) {
+                    addedOffers.sort((a, b) => b.time - a.time);
+                    const latest = addedOffers[0];
+
+                    Utils.log(`Signaling: Processing latest offer in batch (Session: ${latest.id}, Total in batch: ${addedOffers.length})`);
+
+                    if (this.onOfferReceived) {
+                        this.onOfferReceived(latest.data.offer, latest.id);
+                    }
+
+                    // Listen for ICE candidates for this session
+                    this.listenForIceCandidates(latest.id);
+
+                    // Log skipped ones for debugging
+                    for (let i = 1; i < addedOffers.length; i++) {
+                        Utils.log(`Signaling: Skipping concurrent older offer (Session: ${addedOffers[i].id})`);
+                    }
+                }
             });
 
         this.unsubscribeCallbacks.push(unsubscribe);
@@ -243,8 +266,8 @@ class SignalingManager {
         try {
             // Find peers with same public IP but different role
             const targetRole = this.role === 'interface' ? 'navigator' : 'interface';
-            // Cutoff: 22 seconds ago (allows for 2 missed 10s heartbeats + buffer)
-            const cutoffTime = new Date(Date.now() - 22000);
+            // Cutoff: 60 seconds ago (more lenient for clock skew)
+            const cutoffTime = new Date(Date.now() - 60000);
 
             const snapshot = await this.db
                 .collection('peers')
@@ -253,6 +276,8 @@ class SignalingManager {
                 .where('status', '==', 'available')
                 .where('lastSeen', '>', cutoffTime)
                 .get();
+
+            Utils.log(`Signaling: Querying peers with IP: ${this.publicIP}, Role: ${targetRole}, Cutoff: ${cutoffTime.toISOString()}`);
 
             const peers = [];
             snapshot.forEach(doc => {

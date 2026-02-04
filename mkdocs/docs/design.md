@@ -63,22 +63,33 @@ The central communication hub handling:
 3. **PULSATING** - Red, rhythmic vibration
 
 #### **State Updates**
-The PWA receives JSON state updates via the WebRTC Data Channel. States can be applied at the row level (affecting all buttons in a row) or to individual buttons.
+The PWA receives JSON state updates via the WebRTC Data Channel. States can be applied at the row level (affecting all buttons in a row) or to individual buttons. Row numbers and button IDs are **1-based** (row: 1-4, id: 1-4). Only `h1-h4` buttons store persistent haptic states; `enter` and navigation buttons use interaction-only pulses.
 
 **JSON Protocol Example:**
 ```json
 {
   "rows": [
     {
-      "row": 0,
-      "state": "ACTIVE"
-    },
-    {
       "row": 1,
       "buttons": [
-        {"id": 0, "state": "PULSATING"},
-        {"id": 1, "state": "ACTIVE"}
+        {"id": 4, "state": "ACTIVE"}
       ]
+    },
+    {
+      "row": 2,
+      "buttons": [
+        {"id": 1, "state": "PULSATING"},
+        {"id": 2, "state": "ACTIVE"}
+      ]
+    },
+    {
+      "row": 3,
+      "buttons": [
+        {"id": 3, "state": "ACTIVE"}
+      ]
+    },{
+      "row": 4,
+     "state": "INACTIVE"
     }
   ]
 }
@@ -100,11 +111,11 @@ To ensure reliable tactile feedback on mobile devices, the system uses **coordin
 - Touch exits button → Send "BxU*" event + Stop vibration
 
 Uses Web Vibration API (`navigator.vibrate()`):
-- **Interaction Pulse**: `window.navigator.vibrate(50)` for instant tactile confirmation.
-- **ACTIVE**: Continuous buzz pattern.
-- **PULSATING**: Rhythmic heartbeat pattern.
+- **Interaction Pulse**: `window.navigator.vibrate(50)` for instant tactile confirmation on all buttons.
+- **ACTIVE (h1-h4 only)**: Continuous buzz pattern (400ms bursts every 500ms).
+- **PULSATING (h1-h4 only)**: Rhythmic heartbeat pattern ([100, 100, 100, 300] every 600ms).
 
-Vibration triggers are bound to coordinate-based boundary crossings and instant touch events for precise tactile feedback.
+Vibration triggers are prioritized: **PULSATING > ACTIVE > Interaction Pulse**.
 
 ### **4.5 Signaling & Discovery**
 
