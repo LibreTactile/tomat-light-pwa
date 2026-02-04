@@ -183,4 +183,66 @@ class TomatNaviIO {
         if (!this.buttonStates[row]) return null;
         return this.buttonStates[row][buttonIndex] || null;
     }
+
+    /**
+     * Parse coded string format: "1P,2,3,4*"
+     * Format: comma-separated values, each representing a row (1-4).
+     * Ends with *.
+     * Values: Button ID (1-4), optional 'P' suffix for PULSATING.
+     * Default state is ACTIVE if no P.
+     * @param {string} str - The coded string
+     * @returns {Object|null} State object compatible with handleStateUpdate or null if invalid
+     */
+    parseEncodedString(str) {
+        // Quick validation: must be string and end with *
+        if (!str || typeof str !== 'string' || !str.trim().endsWith('*')) {
+            return null;
+        }
+
+        const content = str.trim().slice(0, -1); // Remove trailing *
+        const parts = content.split(',');
+
+        // Limit to 4 rows as per spec
+        const maxRows = Math.min(parts.length, 4);
+        const rows = [];
+        let hasValidParts = false;
+
+        for (let i = 0; i < maxRows; i++) {
+            const part = parts[i].trim();
+            if (!part) continue;
+
+            const rowNum = i + 1;
+            let state = 'ACTIVE';
+            let btnStr = part;
+
+            // Check for Pulsating modifier
+            if (part.toUpperCase().includes('P')) {
+                state = 'PULSATING';
+                btnStr = part.replace(/P/i, '');
+            }
+
+            const btnId = parseInt(btnStr, 10);
+
+            if (!isNaN(btnId) && btnId >= 1 && btnId <= 4) {
+                rows.push({
+                    row: rowNum,
+                    buttons: [
+                        { id: btnId, state: state }
+                    ]
+                });
+                hasValidParts = true;
+            } else {
+                Utils.log(`TomatNaviIO: Invalid button ID in coded string segment: ${part}`);
+            }
+        }
+
+        if (!hasValidParts && parts.length > 0 && parts[0] !== '') {
+            // If we had parts but failed to parse any, maybe log warning
+            // If input was just "*", parts is [""] (empty), effectively clearing.
+            // If input "X*" -> invalid ID X.
+            return { rows: [] }; // Return empty rows to clear everything
+        }
+
+        return { rows: rows };
+    }
 }

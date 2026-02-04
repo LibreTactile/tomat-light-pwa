@@ -164,6 +164,16 @@ class VibrationPWA {
         // If data is a string, try to parse it as JSON first
         let parsedData = data;
         if (typeof data === 'string') {
+            // Check for coded string format (e.g., "1P,2,3,4*")
+            if (this.naviIO && data.trim().endsWith('*')) {
+                const codedState = this.naviIO.parseEncodedString(data);
+                if (codedState) {
+                    Utils.log('Parsed coded string:', codedState);
+                    this.naviIO.handleStateUpdate(codedState);
+                    return;
+                }
+            }
+
             try {
                 parsedData = JSON.parse(data);
                 Utils.log('Parsed JSON string:', parsedData);
