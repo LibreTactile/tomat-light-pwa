@@ -70,10 +70,11 @@ class WebRTCManager {
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', this.peerConnection.iceConnectionState);
-      if (this.peerConnection.iceConnectionState === 'failed' ||
-        this.peerConnection.iceConnectionState === 'disconnected') {
+      const iceState = this.peerConnection.iceConnectionState;
+      console.log('ICE connection state:', iceState);
+      if (iceState === 'failed' || iceState === 'disconnected') {
         console.warn('ICE connection failed or disconnected');
+        this.onConnectionStateChange(iceState);
       }
     };
 
