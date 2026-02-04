@@ -3,10 +3,11 @@
  */
 
 class VibrationHandler {
-    constructor(buttonElement, statusElement, debugElement) {
+    constructor(buttonElement, statusElement, debugElement, onButtonInteraction) {
         this.vibrateBtn = buttonElement;
         this.status = statusElement;
         this.debugInfo = debugElement;
+        this.onButtonInteraction = onButtonInteraction || null;
 
         // Touch tracking system
         this.activeTouches = new Map(); // Maps touch identifier to touch state
@@ -215,8 +216,12 @@ class VibrationHandler {
         if (target) {
             target.classList.add('active', 'hover');
 
-            // Optional: Send data if it's an h-btn
-            // This would likely go via a callback or event, but for now just visual/haptic
+            // Send interaction event if callback exists
+            if (this.onButtonInteraction) {
+                const input = target.getAttribute('data-input');
+                const row = target.parentElement.getAttribute('data-row');
+                this.onButtonInteraction(input, 'down', row);
+            }
         }
         this.createWaveEffect();
     }
@@ -224,6 +229,13 @@ class VibrationHandler {
     onTouchExitButton(target) {
         if (target) {
             target.classList.remove('active', 'hover');
+
+            // Send interaction event if callback exists
+            if (this.onButtonInteraction) {
+                const input = target.getAttribute('data-input');
+                const row = target.parentElement.getAttribute('data-row');
+                this.onButtonInteraction(input, 'up', row);
+            }
         }
     }
 

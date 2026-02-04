@@ -41,11 +41,10 @@ class VibrationPWA {
     }
 
     initializeApp() {
-        // Initialize component managers
-        this.vibrationHandler = new VibrationHandler(
-            this.tomatUI, // Replaces vibrateBtn
-            this.status,
-            this.debugInfo
+        // Initialize WebRTC manager
+        this.webrtcManager = new WebRTCManager(
+            (isConnected, state) => this.onConnectionChange(isConnected, state),
+            (data) => this.onDataReceived(data)
         );
 
         this.pwaManager = new PWAManager(
@@ -55,10 +54,15 @@ class VibrationPWA {
             this.swStatus
         );
 
-        // Initialize WebRTC manager
-        this.webrtcManager = new WebRTCManager(
-            (isConnected, state) => this.onConnectionChange(isConnected, state),
-            (data) => this.onDataReceived(data)
+        // Initialize Navi IO Manager
+        this.naviIO = new TomatNaviIO(this.webrtcManager);
+
+        // Initialize component managers
+        this.vibrationHandler = new VibrationHandler(
+            this.tomatUI, // Replaces vibrateBtn
+            this.status,
+            this.debugInfo,
+            (input, state, row) => this.naviIO.handleButtonInteraction(input, state, row)
         );
 
         // Setup additional event listeners
